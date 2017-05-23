@@ -60,6 +60,34 @@ struct vm_phys_seg {
 	struct vm_freelist (*free_queues)[VM_NFREEPOOL][VM_NFREEORDER];
 };
 
+struct vm_pagequeue {
+	struct mtx	pq_mutex;
+	struct pglist	pq_pl;
+	int		pq_cnt;
+	u_int		* const pq_vcnt;
+	const char	* const pq_name;
+} __aligned(CACHE_LINE_SIZE);
+
+#define	vm_pagequeue_assert_locked(pq)	mtx_assert(&(pq)->pq_mutex, MA_OWNED)
+#define	vm_pagequeue_lock(pq)		mtx_lock(&(pq)->pq_mutex)
+#define	vm_pagequeue_lockptr(pq)	(&(pq)->pq_mutex)
+#define	vm_pagequeue_unlock(pq)		mtx_unlock(&(pq)->pq_mutex)
+
+static inline void
+vm_pagequeue_cnt_add(struct vm_pagequeue *pq, int addend)
+{
+
+#ifdef notyet
+	vm_pagequeue_assert_locked(pq);
+#endif
+	pq->pq_cnt += addend;
+	atomic_add_int(pq->pq_vcnt, addend);
+}
+#define	vm_pagequeue_cnt_inc(pq)	vm_pagequeue_cnt_add((pq), 1)
+#define	vm_pagequeue_cnt_dec(pq)	vm_pagequeue_cnt_add((pq), -1)
+
+extern struct mtx_padalign vm_page_queue_free_mtx;
+
 struct vm_domain {
         struct vm_pagequeue	vmd_pagequeues[PQ_COUNT];
         u_int			vmd_page_count;
@@ -85,6 +113,7 @@ extern struct vm_domain vm_dom[MAXMEMDOM];
 /*
  * The following functions are only to be used by the virtual memory system.
  */
+struct vm_pagequeue *vm_page_pagequeue(vm_page_t m);
 void vm_phys_add_page(vm_paddr_t pa);
 void vm_phys_add_seg(vm_paddr_t start, vm_paddr_t end);
 vm_page_t vm_phys_alloc_contig(u_long npages, vm_paddr_t low, vm_paddr_t high,

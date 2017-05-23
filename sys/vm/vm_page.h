@@ -203,7 +203,6 @@ struct vm_page {
 
 #define	VPB_UNBUSIED		VPB_SHARERS_WORD(0)
 
-#ifdef _KERNEL
 #define	PQ_NONE		255
 #define	PQ_INACTIVE	0
 #define	PQ_ACTIVE	1
@@ -214,36 +213,8 @@ struct vm_page {
 TAILQ_HEAD(pglist, vm_page);
 SLIST_HEAD(spglist, vm_page);
 
-struct vm_pagequeue {
-	struct mtx	pq_mutex;
-	struct pglist	pq_pl;
-	int		pq_cnt;
-	u_int		* const pq_vcnt;
-	const char	* const pq_name;
-} __aligned(CACHE_LINE_SIZE);
-
-#define	vm_pagequeue_assert_locked(pq)	mtx_assert(&(pq)->pq_mutex, MA_OWNED)
-#define	vm_pagequeue_lock(pq)		mtx_lock(&(pq)->pq_mutex)
-#define	vm_pagequeue_lockptr(pq)	(&(pq)->pq_mutex)
-#define	vm_pagequeue_unlock(pq)		mtx_unlock(&(pq)->pq_mutex)
-
 extern vm_page_t bogus_page;
 
-static __inline void
-vm_pagequeue_cnt_add(struct vm_pagequeue *pq, int addend)
-{
-
-#ifdef notyet
-	vm_pagequeue_assert_locked(pq);
-#endif
-	pq->pq_cnt += addend;
-	atomic_add_int(pq->pq_vcnt, addend);
-}
-#define	vm_pagequeue_cnt_inc(pq)	vm_pagequeue_cnt_add((pq), 1)
-#define	vm_pagequeue_cnt_dec(pq)	vm_pagequeue_cnt_add((pq), -1)
-#endif	/* _KERNEL */
-
-extern struct mtx_padalign vm_page_queue_free_mtx;
 extern struct mtx_padalign pa_lock[];
 
 #if defined(__arm__)
@@ -451,7 +422,6 @@ void vm_page_launder(vm_page_t m);
 vm_page_t vm_page_lookup (vm_object_t, vm_pindex_t);
 vm_page_t vm_page_next(vm_page_t m);
 int vm_page_pa_tryrelock(pmap_t, vm_paddr_t, vm_paddr_t *);
-struct vm_pagequeue *vm_page_pagequeue(vm_page_t m);
 vm_page_t vm_page_prev(vm_page_t m);
 boolean_t vm_page_ps_is_valid(vm_page_t m);
 void vm_page_putfake(vm_page_t m);
