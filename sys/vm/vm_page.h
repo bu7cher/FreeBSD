@@ -203,6 +203,7 @@ struct vm_page {
 
 #define	VPB_UNBUSIED		VPB_SHARERS_WORD(0)
 
+#ifdef _KERNEL
 #define	PQ_NONE		255
 #define	PQ_INACTIVE	0
 #define	PQ_ACTIVE	1
@@ -221,28 +222,11 @@ struct vm_pagequeue {
 	const char	* const pq_name;
 } __aligned(CACHE_LINE_SIZE);
 
-
-struct vm_domain {
-	struct vm_pagequeue vmd_pagequeues[PQ_COUNT];
-	u_int vmd_page_count;
-	u_int vmd_free_count;
-	long vmd_segs;	/* bitmask of the segments */
-	boolean_t vmd_oom;
-	int vmd_oom_seq;
-	int vmd_last_active_scan;
-	struct vm_page vmd_laundry_marker;
-	struct vm_page vmd_marker; /* marker for pagedaemon private use */
-	struct vm_page vmd_inacthead; /* marker for LRU-defeating insertions */
-};
-
-extern struct vm_domain vm_dom[MAXMEMDOM];
-
 #define	vm_pagequeue_assert_locked(pq)	mtx_assert(&(pq)->pq_mutex, MA_OWNED)
 #define	vm_pagequeue_lock(pq)		mtx_lock(&(pq)->pq_mutex)
 #define	vm_pagequeue_lockptr(pq)	(&(pq)->pq_mutex)
 #define	vm_pagequeue_unlock(pq)		mtx_unlock(&(pq)->pq_mutex)
 
-#ifdef _KERNEL
 extern vm_page_t bogus_page;
 
 static __inline void

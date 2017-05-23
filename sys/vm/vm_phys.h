@@ -60,11 +60,27 @@ struct vm_phys_seg {
 	struct vm_freelist (*free_queues)[VM_NFREEPOOL][VM_NFREEORDER];
 };
 
+struct vm_domain {
+        struct vm_pagequeue	vmd_pagequeues[PQ_COUNT];
+        u_int			vmd_page_count;
+        u_int			vmd_free_count;
+        long			vmd_segs;  /* bitmask of the segments */
+        boolean_t		vmd_oom;
+        int			vmd_oom_seq;
+        int			vmd_last_active_scan;
+        struct vm_page		vmd_laundry_marker;
+	/* Marker for pagedaemon private use. */
+        struct vm_page		vmd_marker;
+	/* Marker for LRU-defeating insertions. */
+        struct vm_page		vmd_inacthead;
+};
+
 extern struct mem_affinity *mem_affinity;
 extern int *mem_locality;
 extern int vm_ndomains;
 extern struct vm_phys_seg vm_phys_segs[];
 extern int vm_phys_nsegs;
+extern struct vm_domain vm_dom[MAXMEMDOM];
 
 /*
  * The following functions are only to be used by the virtual memory system.
