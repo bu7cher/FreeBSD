@@ -65,8 +65,12 @@ void (*cpustop_restartfunc)(void);
 
 static int sysctl_kern_smp_active(SYSCTL_HANDLER_ARGS);
 
-/* This is used in modules that need to work in both SMP and UP. */
-cpuset_t all_cpus;
+/*
+ * This is used in modules that need to work in both SMP and UP.
+ * Initialize it as CPU0 is always enabled, to make CPU_FOREACH()
+ * work before cpu_startup().
+ */
+cpuset_t all_cpus = { { [0] = 1 } };
 
 int mp_ncpus;
 /* export this for libkvm consumers. */
