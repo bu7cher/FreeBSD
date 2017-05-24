@@ -737,7 +737,10 @@ vm_phys_add_page(vm_paddr_t pa)
 	vm_page_t m;
 	struct vm_domain *vmd;
 
+	KASSERT(vm_cnt.v_meter_initialized == 0,
+	    ("%s: meter initialized", __func__));
 	vm_cnt.v_page_count++;
+	vm_cnt.v_free_count_early++;
 	m = vm_phys_paddr_to_vm_page(pa);
 	m->busy_lock = VPB_UNBUSIED;
 	m->phys_addr = pa;
@@ -745,6 +748,7 @@ vm_phys_add_page(vm_paddr_t pa)
 	m->segind = vm_phys_paddr_to_segind(pa);
 	vmd = vm_phys_domain(m);
 	vmd->vmd_page_count++;
+	vmd->vmd_free_count_early++;
 	vmd->vmd_segs |= 1UL << m->segind;
 	KASSERT(m->order == VM_NFREEORDER,
 	    ("vm_phys_add_page: page %p has unexpected order %d",
@@ -752,7 +756,6 @@ vm_phys_add_page(vm_paddr_t pa)
 	m->pool = VM_FREEPOOL_DEFAULT;
 	pmap_page_init(m);
 	mtx_lock(&vm_page_queue_free_mtx);
-	vm_phys_freecnt_adj(m, 1);
 	vm_phys_free_pages(m, 0);
 	mtx_unlock(&vm_page_queue_free_mtx);
 }

@@ -62,6 +62,8 @@ __FBSDID("$FreeBSD$");
 #include <vm/uma.h>
 #include <ddb/ddb.h>
 
+void pcpu_zones_startup(void);
+
 static MALLOC_DEFINE(M_PCPU, "Per-cpu", "Per-cpu resource accouting.");
 
 struct dpcpu_free {
@@ -136,7 +138,7 @@ SYSINIT(dpcpu, SI_SUB_KLD, SI_ORDER_FIRST, dpcpu_startup, 0);
 uma_zone_t pcpu_zone_64;
 uma_zone_t pcpu_zone_ptr;
 
-static void
+void
 pcpu_zones_startup(void)
 {
 
@@ -149,7 +151,6 @@ pcpu_zones_startup(void)
 		pcpu_zone_ptr = uma_zcreate("ptr pcpu", sizeof(void *),
 		    NULL, NULL, NULL, NULL, UMA_ALIGN_PTR, UMA_ZONE_PCPU);
 }
-SYSINIT(pcpu_zones, SI_SUB_KMEM, SI_ORDER_ANY, pcpu_zones_startup, NULL);
 
 /*
  * First-fit extent based allocator for allocating space in the per-cpu

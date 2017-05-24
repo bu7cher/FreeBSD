@@ -114,8 +114,8 @@ efi_destroy_1t1_map(void)
 		VM_OBJECT_RLOCK(obj_1t1_pt);
 		TAILQ_FOREACH(m, &obj_1t1_pt->memq, listq)
 			m->wire_count = 0;
-		atomic_subtract_int(&vm_cnt.v_wire_count,
-		    obj_1t1_pt->resident_page_count);
+		counter_u64_add(vm_cnt.v_wire_count,
+		    -obj_1t1_pt->resident_page_count);
 		VM_OBJECT_RUNLOCK(obj_1t1_pt);
 		vm_object_deallocate(obj_1t1_pt);
 	}

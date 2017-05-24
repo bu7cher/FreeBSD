@@ -89,6 +89,8 @@ __FBSDID("$FreeBSD$");
 #include <vm/vm_pager.h>
 #include <vm/vm_extern.h>
 
+extern void vm_meter_startup(void);
+
 long physmem;
 
 /*
@@ -135,6 +137,7 @@ vm_mem_init(dummy)
 	 */
 	vm_set_page_size();
 	virtual_avail = vm_page_startup(virtual_avail);
+	vm_meter_startup();
 	
 	/*
 	 * Initialize other VM packages

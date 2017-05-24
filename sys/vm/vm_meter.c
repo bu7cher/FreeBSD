@@ -51,10 +51,14 @@ __FBSDID("$FreeBSD$");
 #include <vm/vm_page.h>
 #include <vm/vm_extern.h>
 #include <vm/vm_param.h>
+#include <vm/vm_phys.h>
 #include <vm/pmap.h>
 #include <vm/vm_map.h>
 #include <vm/vm_object.h>
 #include <sys/sysctl.h>
+
+extern void pcpu_zones_startup(void);
+void vm_meter_startup(void);
 
 struct vmmeter vm_cnt = {
 	.v_swtch = EARLY_COUNTER,
@@ -92,16 +96,32 @@ struct vmmeter vm_cnt = {
 	.v_vforkpages = EARLY_COUNTER,
 	.v_rforkpages = EARLY_COUNTER,
 	.v_kthreadpages = EARLY_COUNTER,
+	.v_active_count = EARLY_COUNTER,
+	.v_inactive_count = EARLY_COUNTER,
+	.v_laundry_count = EARLY_COUNTER,
+	.v_wire_count = EARLY_COUNTER,
 };
 
-static void
-vmcounter_startup(void)
+void
+vm_meter_startup(void)
 {
 	counter_u64_t *cnt = (counter_u64_t *)&vm_cnt;
+	uint64_t free_count;
 
+	pcpu_zones_startup();
+
+	free_count = vm_cnt.v_free_count_early;
 	COUNTER_ARRAY_ALLOC(cnt, VM_METER_NCOUNTERS, M_WAITOK);
+	counter_u64_add(vm_cnt.v_free_count, free_count);
+
+	for (int i = 0; i < vm_ndomains; i++) {
+		free_count = vm_dom[i].vmd_free_count_early;
+		vm_dom[i].vmd_free_count = counter_u64_alloc(M_WAITOK);
+		counter_u64_add(vm_dom[i].vmd_free_count, free_count);
+	}
+
+	vm_cnt.v_meter_initialized = 1;
 }
-SYSINIT(counter, SI_SUB_CPU, SI_ORDER_FOURTH + 1, vmcounter_startup, NULL);
 
 SYSCTL_UINT(_vm, VM_V_FREE_MIN, v_free_min,
 	CTLFLAG_RW, &vm_cnt.v_free_min, 0, "Minimum low-free-pages threshold");
@@ -252,7 +272,7 @@ vmtotal(SYSCTL_HANDLER_ARGS)
 		}
 	}
 	mtx_unlock(&vm_object_list_mtx);
-	total.t_free = vm_cnt.v_free_count;
+	total.t_free = v_free_count();
 	return (sysctl_handle_opaque(oidp, &total, sizeof(total), req));
 }
 
@@ -306,6 +326,11 @@ VM_STATS_VM(v_forkpages, "VM pages affected by fork()");
 VM_STATS_VM(v_vforkpages, "VM pages affected by vfork()");
 VM_STATS_VM(v_rforkpages, "VM pages affected by rfork()");
 VM_STATS_VM(v_kthreadpages, "VM pages affected by fork() by kernel");
+VM_STATS_VM(v_free_count, "Free pages");
+VM_STATS_VM(v_wire_count, "Wired pages");
+VM_STATS_VM(v_active_count, "Active pages");
+VM_STATS_VM(v_inactive_count, "Inactive pages");
+VM_STATS_VM(v_laundry_count, "Pages eligible for laundering");
 
 #define	VM_STATS_UINT(var, descr)	\
     SYSCTL_UINT(_vm_stats_vm, OID_AUTO, var, CTLFLAG_RD, &vm_cnt.var, 0, descr)
@@ -314,12 +339,7 @@ VM_STATS_UINT(v_page_count, "Total number of pages in system");
 VM_STATS_UINT(v_free_reserved, "Pages reserved for deadlock");
 VM_STATS_UINT(v_free_target, "Pages desired free");
 VM_STATS_UINT(v_free_min, "Minimum low-free-pages threshold");
-VM_STATS_UINT(v_free_count, "Free pages");
-VM_STATS_UINT(v_wire_count, "Wired pages");
-VM_STATS_UINT(v_active_count, "Active pages");
 VM_STATS_UINT(v_inactive_target, "Desired inactive pages");
-VM_STATS_UINT(v_inactive_count, "Inactive pages");
-VM_STATS_UINT(v_laundry_count, "Pages eligible for laundering");
 VM_STATS_UINT(v_pageout_free_min, "Min pages reserved for kernel");
 VM_STATS_UINT(v_interrupt_free_min, "Reserved pages for interrupt code");
 VM_STATS_UINT(v_free_severe, "Severe page depletion point");

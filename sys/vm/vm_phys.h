@@ -64,8 +64,8 @@ struct vm_pagequeue {
 	struct mtx	pq_mutex;
 	struct pglist	pq_pl;
 	int		pq_cnt;
-	u_int		* const pq_vcnt;
-	const char	* const pq_name;
+	counter_u64_t	pq_vcnt;
+	const char	*pq_name;
 } __aligned(CACHE_LINE_SIZE);
 
 #define	vm_pagequeue_assert_locked(pq)	mtx_assert(&(pq)->pq_mutex, MA_OWNED)
@@ -81,7 +81,7 @@ vm_pagequeue_cnt_add(struct vm_pagequeue *pq, int addend)
 	vm_pagequeue_assert_locked(pq);
 #endif
 	pq->pq_cnt += addend;
-	atomic_add_int(pq->pq_vcnt, addend);
+	counter_u64_add(pq->pq_vcnt, addend);
 }
 #define	vm_pagequeue_cnt_inc(pq)	vm_pagequeue_cnt_add((pq), 1)
 #define	vm_pagequeue_cnt_dec(pq)	vm_pagequeue_cnt_add((pq), -1)
@@ -90,8 +90,11 @@ extern struct mtx_padalign vm_page_queue_free_mtx;
 
 struct vm_domain {
         struct vm_pagequeue	vmd_pagequeues[PQ_COUNT];
+	union {
+		counter_u64_t	vmd_free_count;
+		uintptr_t	vmd_free_count_early;
+	};
         u_int			vmd_page_count;
-        u_int			vmd_free_count;
         long			vmd_segs;  /* bitmask of the segments */
         boolean_t		vmd_oom;
         int			vmd_oom_seq;
@@ -162,8 +165,8 @@ vm_phys_freecnt_adj(vm_page_t m, int adj)
 {
 
 	mtx_assert(&vm_page_queue_free_mtx, MA_OWNED);
-	vm_cnt.v_free_count += adj;
-	vm_phys_domain(m)->vmd_free_count += adj;
+	counter_u64_add(vm_cnt.v_free_count, adj);
+	counter_u64_add(vm_phys_domain(m)->vmd_free_count, adj);
 }
 
 #endif	/* _KERNEL */
