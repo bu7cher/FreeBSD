@@ -150,7 +150,7 @@ void	routepr(int, int);
 void	netgraphprotopr(u_long, const char *, int, int);
 #endif
 
-void	unixpr(u_long, u_long, u_long, u_long, u_long, bool *);
+void	unixpr(bool *);
 
 void	mroutepr(void);
 void	mrt_stats(void);

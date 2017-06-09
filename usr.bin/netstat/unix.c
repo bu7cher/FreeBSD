@@ -96,133 +96,18 @@ pcblist_sysctl(int type, char **bufp)
 	return (0);
 }
 
-static int
-pcblist_kvm(u_long count_off, u_long gencnt_off, u_long head_off, char **bufp)
-{
-	struct unp_head head;
-	struct unpcb *unp, unp_conn;
-	u_char sun_len;
-	struct socket so;
-	struct xunpgen xug;
-	struct xunpcb xu;
-	unp_gen_t unp_gencnt;
-	u_int	unp_count;
-	char 	*buf, *p;
-	size_t	len;
-
-	if (count_off == 0 || gencnt_off == 0)
-		return (-2);
-	if (head_off == 0)
-		return (-1);
-	kread(count_off, &unp_count, sizeof(unp_count));
-	len = 2 * sizeof(xug) + (unp_count + unp_count / 8) * sizeof(xu);
-	if ((buf = malloc(len)) == NULL) {
-		xo_warnx("malloc %lu bytes", (u_long)len);
-		return (-2);
-	}
-	p = buf;
-
-#define	COPYOUT(obj, size) do {						\
-	if (len < (size)) {						\
-		xo_warnx("buffer size exceeded");			\
-		goto fail;						\
-	}								\
-	bcopy((obj), p, (size));					\
-	len -= (size);							\
-	p += (size);							\
-} while (0)
-
-#define	KREAD(off, buf, len) do {					\
-	if (kread((uintptr_t)(off), (buf), (len)) != 0)			\
-		goto fail;						\
-} while (0)
-
-	/* Write out header. */
-	kread(gencnt_off, &unp_gencnt, sizeof(unp_gencnt));
-	xug.xug_len = sizeof xug;
-	xug.xug_count = unp_count;
-	xug.xug_gen = unp_gencnt;
-	xug.xug_sogen = 0;
-	COPYOUT(&xug, sizeof xug);
-
-	/* Walk the PCB list. */
-	xu.xu_len = sizeof xu;
-	KREAD(head_off, &head, sizeof(head));
-	LIST_FOREACH(unp, &head, unp_link) {
-		xu.xu_unpp = unp;
-		KREAD(unp, &xu.xu_unp, sizeof (*unp));
-		unp = &xu.xu_unp;
-
-		if (unp->unp_gencnt > unp_gencnt)
-			continue;
-		if (unp->unp_addr != NULL) {
-			KREAD(unp->unp_addr, &sun_len, sizeof(sun_len));
-			KREAD(unp->unp_addr, &xu.xu_addr, sun_len);
-		}
-		if (unp->unp_conn != NULL) {
-			KREAD(unp->unp_conn, &unp_conn, sizeof(unp_conn));
-			if (unp_conn.unp_addr != NULL) {
-				KREAD(unp_conn.unp_addr, &sun_len,
-				    sizeof(sun_len));
-				KREAD(unp_conn.unp_addr, &xu.xu_caddr, sun_len);
-			}
-		}
-		KREAD(unp->unp_socket, &so, sizeof(so));
-		if (sotoxsocket(&so, &xu.xu_socket) != 0)
-			goto fail;
-		COPYOUT(&xu, sizeof(xu));
-	}
-
-	/* Reread the counts and write the footer. */
-	kread(count_off, &unp_count, sizeof(unp_count));
-	kread(gencnt_off, &unp_gencnt, sizeof(unp_gencnt));
-	xug.xug_count = unp_count;
-	xug.xug_gen = unp_gencnt;
-	COPYOUT(&xug, sizeof xug);
-
-	*bufp = buf;
-	return (0);
-
-fail:
-	free(buf);
-	return (-1);
-#undef COPYOUT
-#undef KREAD
-}
-
 void
-unixpr(u_long count_off, u_long gencnt_off, u_long dhead_off, u_long shead_off,
-    u_long sphead_off, bool *first)
+unixpr(bool *first)
 {
 	char 	*buf;
 	int	ret, type;
 	struct	xsocket *so;
 	struct	xunpgen *xug, *oxug;
 	struct	xunpcb *xunp;
-	u_long	head_off;
 
 	buf = NULL;
 	for (type = SOCK_STREAM; type <= SOCK_SEQPACKET; type++) {
-		if (live)
-			ret = pcblist_sysctl(type, &buf);
-		else {
-			head_off = 0;
-			switch (type) {
-			case SOCK_STREAM:
-				head_off = shead_off;
-				break;
-
-			case SOCK_DGRAM:
-				head_off = dhead_off;
-				break;
-
-			case SOCK_SEQPACKET:
-				head_off = sphead_off;
-				break;
-			}
-			ret = pcblist_kvm(count_off, gencnt_off, head_off,
-			    &buf);
-		}
+		ret = pcblist_sysctl(type, &buf);
 		if (ret == -1)
 			continue;
 		if (ret < 0)
@@ -236,7 +121,7 @@ unixpr(u_long count_off, u_long gencnt_off, u_long dhead_off, u_long shead_off,
 			so = &xunp->xu_socket;
 
 			/* Ignore PCBs which were freed during copyout. */
-			if (xunp->xu_unp.unp_gencnt > oxug->xug_gen)
+			if (xunp->xu_gencnt > oxug->xug_gen)
 				continue;
 			if (*first) {
 				xo_open_list("socket");
@@ -268,7 +153,6 @@ unixpr(u_long count_off, u_long gencnt_off, u_long dhead_off, u_long shead_off,
 static void
 unixdomainpr(struct xunpcb *xunp, struct xsocket *so)
 {
-	struct unpcb *unp;
 	struct sockaddr_un *sa;
 	static int first = 1;
 	char buf1[33];
@@ -292,8 +176,7 @@ unixdomainpr(struct xunpcb *xunp, struct xsocket *so)
 	};
 	int fmt = (sizeof(void *) == 8) ? 1 : 0;
 
-	unp = &xunp->xu_unp;
-	if (unp->unp_addr)
+	if (xunp->xu_addr.sun_len > 0)
 		sa = &xunp->xu_addr;
 	else
 		sa = (struct sockaddr_un *)0;
@@ -318,10 +201,10 @@ unixdomainpr(struct xunpcb *xunp, struct xsocket *so)
 	} else {
 		xo_emit(format[fmt],
 		    (long)so->so_pcb, socktype[so->so_type], so->so_rcv.sb_cc,
-		    so->so_snd.sb_cc, (long)unp->unp_vnode,
-		    (long)unp->unp_conn,
-		    (long)LIST_FIRST(&unp->unp_refs),
-		    (long)LIST_NEXT(unp, unp_reflink));
+		    so->so_snd.sb_cc, (long)xunp->xu_vnode,
+		    (long)xunp->xu_conn,
+		    (long)xunp->xu_first_ref,
+		    (long)xunp->xu_next_ref);
 	}
 	if (sa)
 		xo_emit(" {:path/%.*s}",

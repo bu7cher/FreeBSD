@@ -540,9 +540,7 @@ main(int argc, char *argv[])
 			printproto(tp, tp->pr_name, &first);
 #endif /* NETGRAPH */
 	if ((af == AF_UNIX || af == AF_UNSPEC) && !sflag)
-		unixpr(nl[N_UNP_COUNT].n_value, nl[N_UNP_GENCNT].n_value,
-		    nl[N_UNP_DHEAD].n_value, nl[N_UNP_SHEAD].n_value,
-		    nl[N_UNP_SPHEAD].n_value, &first);
+		unixpr(&first);
 
 	if (!first)
 		xo_close_list("socket");

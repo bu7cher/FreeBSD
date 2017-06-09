@@ -773,8 +773,8 @@ gather_unix(int proto)
 			warnx("struct xunpcb size mismatch");
 			goto out;
 		}
-		if ((xup->xu_unp.unp_conn == NULL && !opt_l) ||
-		    (xup->xu_unp.unp_conn != NULL && !opt_c))
+		if ((xup->xu_conn == NULL && !opt_l) ||
+		    (xup->xu_conn != NULL && !opt_c))
 			continue;
 		if ((sock = calloc(1, sizeof(*sock))) == NULL)
 			err(1, "malloc()");
@@ -787,11 +787,11 @@ gather_unix(int proto)
 		sock->proto = proto;
 		sock->family = AF_UNIX;
 		sock->protoname = protoname;
-		if (xup->xu_unp.unp_addr != NULL)
+		if (xup->xu_addr.sun_len > 0)
 			laddr->address =
 			    *(struct sockaddr_storage *)(void *)&xup->xu_addr;
-		else if (xup->xu_unp.unp_conn != NULL)
-			*(void **)&(faddr->address) = xup->xu_unp.unp_conn;
+		else if (xup->xu_conn != NULL)
+			*(void **)&(faddr->address) = xup->xu_conn;
 		laddr->next = NULL;
 		faddr->next = NULL;
 		sock->laddr = laddr;

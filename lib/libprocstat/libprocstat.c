@@ -52,6 +52,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/domain.h>
 #include <sys/protosw.h>
 #include <sys/un.h>
+#define	_WANT_UNPCB
 #include <sys/unpcb.h>
 #include <sys/sysctl.h>
 #include <sys/tty.h>

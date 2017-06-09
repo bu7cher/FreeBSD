@@ -1549,7 +1549,7 @@ unp_pcblist(SYSCTL_HANDLER_ARGS)
 	unp_gen_t gencnt;
 	struct xunpgen *xug;
 	struct unp_head *head;
-	struct xunpcb *xu;
+	struct xunpcb xu;
 
 	switch ((intptr_t)arg1) {
 	case SOCK_STREAM:
@@ -1622,30 +1622,38 @@ unp_pcblist(SYSCTL_HANDLER_ARGS)
 	n = i;			/* In case we lost some during malloc. */
 
 	error = 0;
-	xu = malloc(sizeof(*xu), M_TEMP, M_WAITOK | M_ZERO);
 	for (i = 0; i < n; i++) {
 		unp = unp_list[i];
 		UNP_PCB_LOCK(unp);
 		unp->unp_refcount--;
 	        if (unp->unp_refcount != 0 && unp->unp_gencnt <= gencnt) {
-			xu->xu_len = sizeof *xu;
-			xu->xu_unpp = unp;
+			xu.xu_len = sizeof(xu);
+			xu.xu_unpp = unp;
 			/*
 			 * XXX - need more locking here to protect against
 			 * connect/disconnect races for SMP.
 			 */
+			xu.xu_gencnt = unp->unp_gencnt;
+			xu.xu_unpp = unp;
+			xu.xu_vnode = unp->unp_vnode;
+			xu.xu_conn = unp->unp_conn;
+			xu.xu_first_ref = LIST_FIRST(&unp->unp_refs);
+			xu.xu_next_ref = LIST_NEXT(unp, unp_reflink);
 			if (unp->unp_addr != NULL)
-				bcopy(unp->unp_addr, &xu->xu_addr,
+				bcopy(unp->unp_addr, &xu.xu_addr,
 				      unp->unp_addr->sun_len);
+			else
+				bzero(&xu.xu_addr, sizeof(xu.xu_addr));
 			if (unp->unp_conn != NULL &&
 			    unp->unp_conn->unp_addr != NULL)
 				bcopy(unp->unp_conn->unp_addr,
-				      &xu->xu_caddr,
+				      &xu.xu_caddr,
 				      unp->unp_conn->unp_addr->sun_len);
-			bcopy(unp, &xu->xu_unp, sizeof *unp);
-			sotoxsocket(unp->unp_socket, &xu->xu_socket);
+			else
+				bzero(&xu.xu_caddr, sizeof(xu.xu_caddr));
+			sotoxsocket(unp->unp_socket, &xu.xu_socket);
 			UNP_PCB_UNLOCK(unp);
-			error = SYSCTL_OUT(req, xu, sizeof *xu);
+			error = SYSCTL_OUT(req, &xu, sizeof(xu));
 		} else {
 			freeunp = (unp->unp_refcount == 0);
 			UNP_PCB_UNLOCK(unp);
@@ -1655,7 +1663,6 @@ unp_pcblist(SYSCTL_HANDLER_ARGS)
 			}
 		}
 	}
-	free(xu, M_TEMP);
 	if (!error) {
 		/*
 		 * Give the user an updated idea of our state.  If the
