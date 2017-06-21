@@ -56,6 +56,7 @@ OLD_FILES+=usr/share/man/man8/iasl.8.gz
 
 .if ${MK_AMD} == no
 OLD_FILES+=etc/amd.map
+OLD_FILES+=etc/newsyslog.conf.d/amd.conf
 OLD_FILES+=etc/rc.d/amd
 OLD_FILES+=usr/bin/pawd
 OLD_FILES+=usr/sbin/amd
@@ -66,7 +67,6 @@ OLD_FILES+=usr/sbin/hlfsd
 OLD_FILES+=usr/sbin/mk-amd-map
 OLD_FILES+=usr/sbin/wire-test
 OLD_FILES+=usr/share/examples/etc/amd.map
-OLD_FILES+=usr/share/info/am-utils.info.gz
 OLD_FILES+=usr/share/man/man1/pawd.1.gz
 OLD_FILES+=usr/share/man/man5/amd.conf.5.gz
 OLD_FILES+=usr/share/man/man8/amd.8.gz
@@ -103,13 +103,7 @@ OLD_FILES+=usr/share/man/man8/atrun.8.gz
 .endif
 
 .if ${MK_ATM} == no
-OLD_FILES+=etc/rc.d/atm1
-OLD_FILES+=etc/rc.d/atm2
-OLD_FILES+=etc/rc.d/atm3
-OLD_FILES+=rescue/atmconfig
-OLD_FILES+=sbin/atmconfig
 OLD_FILES+=usr/bin/sscop
-OLD_FILES+=usr/include/bsnmp/snmp_atm.h
 OLD_FILES+=usr/include/netnatm/addr.h
 OLD_FILES+=usr/include/netnatm/api/atmapi.h
 OLD_FILES+=usr/include/netnatm/api/ccatm.h
@@ -137,30 +131,19 @@ OLD_FILES+=usr/lib/libngatm.a
 OLD_FILES+=usr/lib/libngatm.so
 OLD_LIBS+=usr/lib/libngatm.so.4
 OLD_FILES+=usr/lib/libngatm_p.a
-OLD_FILES+=usr/lib/snmp_atm.so
-OLD_LIBS+=usr/lib/snmp_atm.so.6
 .if ${TARGET_ARCH} == "amd64" || ${TARGET_ARCH} == "powerpc64"
 OLD_FILES+=usr/lib32/libngatm.a
 OLD_FILES+=usr/lib32/libngatm.so
 OLD_LIBS+=usr/lib32/libngatm.so.4
 OLD_FILES+=usr/lib32/libngatm_p.a
 .endif
-OLD_FILES+=usr/share/doc/atm/atmconfig.help
-OLD_FILES+=usr/share/doc/atm/atmconfig_device.help
-OLD_DIRS+=usr/share/doc/atm
 OLD_FILES+=usr/share/man/man1/sscop.1.gz
 OLD_FILES+=usr/share/man/man3/libngatm.3.gz
-OLD_FILES+=usr/share/man/man3/snmp_atm.3.gz
 OLD_FILES+=usr/share/man/man3/uniaddr.3.gz
 OLD_FILES+=usr/share/man/man3/unifunc.3.gz
 OLD_FILES+=usr/share/man/man3/unimsg.3.gz
 OLD_FILES+=usr/share/man/man3/unisap.3.gz
 OLD_FILES+=usr/share/man/man3/unistruct.3.gz
-OLD_FILES+=usr/share/man/man8/atmconfig.8.gz
-OLD_FILES+=usr/share/snmp/defs/atm_freebsd.def
-OLD_FILES+=usr/share/snmp/defs/atm_tree.def
-OLD_FILES+=usr/share/snmp/mibs/BEGEMOT-ATM-FREEBSD-MIB.txt
-OLD_FILES+=usr/share/snmp/mibs/BEGEMOT-ATM.txt
 .endif
 
 .if ${MK_AUDIT} == no
@@ -732,7 +715,6 @@ OLD_FILES+=usr/bin/bsnmpwalk
 OLD_FILES+=usr/include/bsnmp/asn1.h
 OLD_FILES+=usr/include/bsnmp/bridge_snmp.h
 OLD_FILES+=usr/include/bsnmp/snmp.h
-OLD_FILES+=usr/include/bsnmp/snmp_atm.h
 OLD_FILES+=usr/include/bsnmp/snmp_mibII.h
 OLD_FILES+=usr/include/bsnmp/snmp_netgraph.h
 OLD_FILES+=usr/include/bsnmp/snmpagent.h
@@ -746,8 +728,6 @@ OLD_FILES+=usr/lib/libbsnmptools.a
 OLD_FILES+=usr/lib/libbsnmptools.so
 OLD_LIBS+=usr/lib/libbsnmptools.so.0
 OLD_FILES+=usr/lib/libbsnmptools_p.a
-OLD_FILES+=usr/lib/snmp_atm.so
-OLD_LIBS+=usr/lib/snmp_atm.so.6
 OLD_FILES+=usr/lib/snmp_bridge.so
 OLD_LIBS+=usr/lib/snmp_bridge.so.6
 OLD_FILES+=usr/lib/snmp_hast.so
@@ -871,7 +851,6 @@ OLD_FILES+=usr/share/man/man3/snmp_trace.3.gz
 OLD_FILES+=usr/share/man/man3/snmp_value_copy.3.gz
 OLD_FILES+=usr/share/man/man3/snmp_value_free.3.gz
 OLD_FILES+=usr/share/man/man3/snmp_value_parse.3.gz
-OLD_FILES+=usr/share/man/man3/tree.3.gz
 OLD_FILES+=usr/share/man/man3/tree_size.3.gz
 # usr.sbin/bsnmpd/bsnmpd
 OLD_FILES+=usr/share/man/man3/FIND_OBJECT_INT.3.gz
@@ -931,7 +910,6 @@ OLD_FILES+=usr/share/man/man3/reqid_base.3.gz
 OLD_FILES+=usr/share/man/man3/reqid_istype.3.gz
 OLD_FILES+=usr/share/man/man3/reqid_next.3.gz
 OLD_FILES+=usr/share/man/man3/reqid_type.3.gz
-OLD_FILES+=usr/share/man/man3/snmp_atm.3.gz
 OLD_FILES+=usr/share/man/man3/snmp_bridge.3.gz
 OLD_FILES+=usr/share/man/man3/snmp_hast.3.gz
 OLD_FILES+=usr/share/man/man3/snmp_hostres.3.gz
@@ -987,8 +965,6 @@ OLD_FILES+=usr/share/man/man3/usm_flush_users.3.gz
 OLD_FILES+=usr/share/man/man3/usm_next_user.3.gz
 OLD_FILES+=usr/share/man/man3/usm_new_user.3.gz
 OLD_FILES+=usr/share/man/man3/usm_user.3.gz
-OLD_FILES+=usr/share/snmp/defs/atm_freebsd.def
-OLD_FILES+=usr/share/snmp/defs/atm_tree.def
 OLD_FILES+=usr/share/snmp/defs/bridge_tree.def
 OLD_FILES+=usr/share/snmp/defs/hast_tree.def
 OLD_FILES+=usr/share/snmp/defs/hostres_tree.def
@@ -1613,9 +1589,11 @@ OLD_FILES+=usr/share/man/man8/fmtree.8.gz
 
 .if ${MK_FTP} == no
 OLD_FILES+=etc/ftpusers
+OLD_FILES+=etc/newsyslog.conf.d/ftp.conf
 OLD_FILES+=etc/pam.d/ftp
 OLD_FILES+=etc/pam.d/ftpd
 OLD_FILES+=etc/rc.d/ftpd
+OLD_FILES+=etc/syslog.d/ftp.conf
 OLD_FILES+=usr/bin/ftp
 OLD_FILES+=usr/bin/gate-ftp
 OLD_FILES+=usr/bin/pftp
@@ -2420,11 +2398,6 @@ OLD_LIBS+=usr/lib32/libgomp.so.1
 OLD_FILES+=usr/lib32/libgomp_p.a
 OLD_FILES+=usr/libexec/cc1
 OLD_FILES+=usr/libexec/cc1plus
-OLD_FILES+=usr/share/info/cpp.info.gz
-OLD_FILES+=usr/share/info/cppinternals.info.gz
-OLD_FILES+=usr/share/info/gcc.info.gz
-OLD_FILES+=usr/share/info/gccint.info.gz
-OLD_FILES+=usr/share/info/gperf.info.gz
 OLD_FILES+=usr/share/man/man1/g++.1.gz
 OLD_FILES+=usr/share/man/man1/gcc.1.gz
 OLD_FILES+=usr/share/man/man1/gcov.1.gz
@@ -2438,17 +2411,19 @@ OLD_FILES+=usr/bin/gcov
 OLD_FILES+=usr/share/man/man1/gcov.1.gz
 .endif
 
-.if ${MK_GDB} == no
+.if ${MK_GDB} == no || ${MK_GDB_LIBEXEC} == yes
 OLD_FILES+=usr/bin/gdb
 OLD_FILES+=usr/bin/gdbserver
 OLD_FILES+=usr/bin/gdbtui
 OLD_FILES+=usr/bin/kgdb
-OLD_FILES+=usr/share/info/gdb.info.gz
-OLD_FILES+=usr/share/info/gdbint.info.gz
-OLD_FILES+=usr/share/info/stabs.info.gz
 OLD_FILES+=usr/share/man/man1/gdb.1.gz
 OLD_FILES+=usr/share/man/man1/gdbserver.1.gz
 OLD_FILES+=usr/share/man/man1/kgdb.1.gz
+.endif
+
+.if ${MK_GDB} == no || ${MK_GDB_LIBEXEC} == no
+OLD_FILES+=usr/libexec/gdb
+OLD_FILES+=usr/libexec/kgdb
 .endif
 
 .if ${MK_GPIO} == no
@@ -2551,75 +2526,6 @@ OLD_FILES+=usr/bin/troff
 OLD_FILES+=usr/bin/vgrind
 OLD_FILES+=usr/libexec/vfontedpr
 OLD_FILES+=usr/share/dict/eign
-OLD_FILES+=usr/share/doc/papers/beyond43.ascii.gz
-OLD_FILES+=usr/share/doc/papers/bio.ascii.gz
-OLD_FILES+=usr/share/doc/papers/contents.ascii.gz
-OLD_FILES+=usr/share/doc/papers/devfs.ascii.gz
-OLD_FILES+=usr/share/doc/papers/diskperf.ascii.gz
-OLD_FILES+=usr/share/doc/papers/fsinterface.ascii.gz
-OLD_FILES+=usr/share/doc/papers/hwpmc.ascii.gz
-OLD_FILES+=usr/share/doc/papers/jail.ascii.gz
-OLD_FILES+=usr/share/doc/papers/kernmalloc.ascii.gz
-OLD_FILES+=usr/share/doc/papers/kerntune.ascii.gz
-OLD_FILES+=usr/share/doc/papers/malloc.ascii.gz
-OLD_FILES+=usr/share/doc/papers/newvm.ascii.gz
-OLD_FILES+=usr/share/doc/papers/releng.ascii.gz
-OLD_FILES+=usr/share/doc/papers/sysperf.ascii.gz
-OLD_FILES+=usr/share/doc/papers/timecounter.ascii.gz
-OLD_FILES+=usr/share/doc/psd/01.cacm/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/02.implement/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/03.iosys/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/04.uprog/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/05.sysman/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/06.Clang/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/12.make/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/13.rcs/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/13.rcs/rcs_func.ascii.gz
-OLD_FILES+=usr/share/doc/psd/15.yacc/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/16.lex/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/17.m4/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/18.gprof/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/20.ipctut/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/21.ipc/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/22.rpcgen/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/23.rpc/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/24.xdr/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/25.xdrrfc/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/26.rpcrfc/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/27.nfsrfc/paper.ascii.gz
-OLD_FILES+=usr/share/doc/psd/Title.ascii.gz
-OLD_FILES+=usr/share/doc/psd/contents.ascii.gz
-OLD_FILES+=usr/share/doc/smm/01.setup/paper.ascii.gz
-OLD_FILES+=usr/share/doc/smm/02.config/paper.ascii.gz
-OLD_FILES+=usr/share/doc/smm/03.fsck/paper.ascii.gz
-OLD_FILES+=usr/share/doc/smm/04.quotas/paper.ascii.gz
-OLD_FILES+=usr/share/doc/smm/05.fastfs/paper.ascii.gz
-OLD_FILES+=usr/share/doc/smm/06.nfs/paper.ascii.gz
-OLD_FILES+=usr/share/doc/smm/07.lpd/paper.ascii.gz
-OLD_FILES+=usr/share/doc/smm/08.sendmailop/paper.ascii.gz
-OLD_FILES+=usr/share/doc/smm/11.timedop/paper.ascii.gz
-OLD_FILES+=usr/share/doc/smm/12.timed/paper.ascii.gz
-OLD_FILES+=usr/share/doc/smm/18.net/paper.ascii.gz
-OLD_FILES+=usr/share/doc/smm/Title.ascii.gz
-OLD_FILES+=usr/share/doc/smm/contents.ascii.gz
-OLD_FILES+=usr/share/doc/usd/04.csh/paper.ascii.gz
-OLD_FILES+=usr/share/doc/usd/05.dc/paper.ascii.gz
-OLD_FILES+=usr/share/doc/usd/06.bc/paper.ascii.gz
-OLD_FILES+=usr/share/doc/usd/07.mail/paper.ascii.gz
-OLD_FILES+=usr/share/doc/usd/10.exref/paper.ascii.gz
-OLD_FILES+=usr/share/doc/usd/10.exref/summary.ascii.gz
-OLD_FILES+=usr/share/doc/usd/11.edit/paper.ascii.gz
-OLD_FILES+=usr/share/doc/usd/12.vi/paper.ascii.gz
-OLD_FILES+=usr/share/doc/usd/12.vi/summary.ascii.gz
-OLD_FILES+=usr/share/doc/usd/12.vi/viapwh.ascii.gz
-OLD_FILES+=usr/share/doc/usd/13.viref/paper.ascii.gz
-OLD_FILES+=usr/share/doc/usd/18.msdiffs/paper.ascii.gz
-OLD_FILES+=usr/share/doc/usd/19.memacros/paper.ascii.gz
-OLD_FILES+=usr/share/doc/usd/20.meref/paper.ascii.gz
-OLD_FILES+=usr/share/doc/usd/21.troff/paper.ascii.gz
-OLD_FILES+=usr/share/doc/usd/22.trofftut/paper.ascii.gz
-OLD_FILES+=usr/share/doc/usd/Title.ascii.gz
-OLD_FILES+=usr/share/doc/usd/contents.ascii.gz
 OLD_FILES+=usr/share/groff_font/devX100-12/CB
 OLD_FILES+=usr/share/groff_font/devX100-12/CBI
 OLD_FILES+=usr/share/groff_font/devX100-12/CI
@@ -2928,7 +2834,6 @@ OLD_FILES+=usr/share/groff_font/devutf8/R
 OLD_FILES+=usr/share/groff_font/devutf8/S
 OLD_DIRS+=usr/share/groff_font/devutf8
 OLD_DIRS+=usr/share/groff_font
-OLD_FILES+=usr/share/info/groff.info.gz
 OLD_FILES+=usr/share/man/man1/addftinfo.1.gz
 OLD_FILES+=usr/share/man/man1/afmtodit.1.gz
 OLD_FILES+=usr/share/man/man1/eqn.1.gz
@@ -3736,7 +3641,6 @@ OLD_FILES+=usr/libexec/kpasswdd
 OLD_FILES+=usr/sbin/kstash
 OLD_FILES+=usr/sbin/ktutil
 OLD_FILES+=usr/sbin/iprop-log
-OLD_FILES+=usr/share/info/heimdal.info.gz
 OLD_FILES+=usr/share/man/man1/kdestroy.1.gz
 OLD_FILES+=usr/share/man/man1/kf.1.gz
 OLD_FILES+=usr/share/man/man1/kinit.1.gz
@@ -4539,6 +4443,7 @@ OLD_LIBS+=${DEBUG_LIB32_LIBS}
 OLD_LIBS+=lib/libcxxrt.so.1
 OLD_FILES+=usr/lib/libc++.a
 OLD_FILES+=usr/lib/libc++_p.a
+OLD_FILES+=usr/lib/libc++experimental.a
 OLD_FILES+=usr/lib/libc++.so
 OLD_LIBS+=usr/lib/libc++.so.1
 OLD_FILES+=usr/lib/libcxxrt.a
@@ -6180,6 +6085,13 @@ OLD_FILES+=usr/share/locale/zh_HK.UTF-8/LC_MESSAGES
 OLD_FILES+=usr/share/locale/zh_HK.UTF-8/LC_MONETARY
 OLD_FILES+=usr/share/locale/zh_HK.UTF-8/LC_NUMERIC
 OLD_FILES+=usr/share/locale/zh_HK.UTF-8/LC_TIME
+OLD_DIRS+=usr/share/locale/zh_TW.Big5
+OLD_FILES+=usr/share/locale/zh_TW.Big5/LC_COLLATE
+OLD_FILES+=usr/share/locale/zh_TW.Big5/LC_CTYPE
+OLD_FILES+=usr/share/locale/zh_TW.Big5/LC_MESSAGES
+OLD_FILES+=usr/share/locale/zh_TW.Big5/LC_MONETARY
+OLD_FILES+=usr/share/locale/zh_TW.Big5/LC_NUMERIC
+OLD_FILES+=usr/share/locale/zh_TW.Big5/LC_TIME
 OLD_DIRS+=usr/share/locale/zh_TW.UTF-8
 OLD_FILES+=usr/share/locale/zh_TW.UTF-8/LC_COLLATE
 OLD_FILES+=usr/share/locale/zh_TW.UTF-8/LC_CTYPE
@@ -6206,7 +6118,9 @@ OLD_FILES+=usr/share/man/man8/updatedb.8.gz
 .if ${MK_LPR} == no
 OLD_FILES+=etc/hosts.lpd
 OLD_FILES+=etc/printcap
+OLD_FILES+=etc/newsyslog.conf.d/lpr.conf
 OLD_FILES+=etc/rc.d/lpd
+OLD_FILES+=etc/syslog.d/lpr.conf
 OLD_FILES+=usr/bin/lp
 OLD_FILES+=usr/bin/lpq
 OLD_FILES+=usr/bin/lpr
@@ -7181,6 +7095,7 @@ OLD_DIRS+=usr/share/examples/pc-sysinstall
 .endif
 
 .if ${MK_PF} == no
+OLD_FILES+=etc/newsyslog.conf.d/pf.conf
 OLD_FILES+=etc/periodic/security/520.pfdenied
 OLD_FILES+=etc/pf.os
 OLD_FILES+=etc/rc.d/ftp-proxy
@@ -7320,7 +7235,9 @@ OLD_FILES+=usr/share/man/man8/portsnap.8.gz
 .endif
 
 .if ${MK_PPP} == no
+OLD_FILES+=etc/newsyslog.conf.d/ppp.conf
 OLD_FILES+=etc/ppp/ppp.conf
+OLD_FILES+=etc/syslog.d/ppp.conf
 OLD_DIRS+=etc/ppp
 OLD_FILES+=usr/sbin/ppp
 OLD_FILES+=usr/sbin/pppctl
@@ -7496,6 +7413,7 @@ OLD_FILES+=usr/share/man/man8/rtquery.8.gz
 .endif
 
 .if ${MK_SENDMAIL} == no
+OLD_FILES+=etc/newsyslog.conf.d/sendmail.conf
 OLD_FILES+=etc/periodic/daily/150.clean-hoststat
 OLD_FILES+=etc/periodic/daily/440.status-mailq
 OLD_FILES+=etc/periodic/daily/460.status-mail-rejects
@@ -8666,6 +8584,13 @@ OLD_FILES+=usr/share/man/man1/colcrt.1.gz
 OLD_FILES+=usr/share/man/man1/ul.1.gz
 .endif
 
+.if ${MK_TFTP} == no
+OLD_FILES+=usr/bin/tftp
+OLD_FILES+=usr/libexec/tftpd
+OLD_FILES+=usr/share/man/man1/tftp.1.gz
+OLD_FILES+=usr/share/man/man8/tftpd.8.gz
+.endif
+
 .if ${MK_TIMED} == no
 OLD_FILES+=usr/sbin/timed
 OLD_FILES+=usr/sbin/timedc
@@ -9365,8 +9290,6 @@ OLD_FILES+=usr/share/man/man4/ucom.4.gz
 OLD_FILES+=usr/share/man/man4/ucycom.4.gz
 OLD_FILES+=usr/share/man/man4/udav.4.gz
 OLD_FILES+=usr/share/man/man4/udbp.4.gz
-OLD_FILES+=usr/share/man/man4/udp.4.gz
-OLD_FILES+=usr/share/man/man4/udplite.4.gz
 OLD_FILES+=usr/share/man/man4/uep.4.gz
 OLD_FILES+=usr/share/man/man4/ufm.4.gz
 OLD_FILES+=usr/share/man/man4/ufoma.4.gz
@@ -9397,7 +9320,6 @@ OLD_FILES+=usr/share/man/man4/usb_quirk.4.gz
 OLD_FILES+=usr/share/man/man4/usb_template.4.gz
 OLD_FILES+=usr/share/man/man4/usfs.4.gz
 OLD_FILES+=usr/share/man/man4/uslcom.4.gz
-OLD_FILES+=usr/share/man/man4/utopia.4.gz
 OLD_FILES+=usr/share/man/man4/uvisor.4.gz
 OLD_FILES+=usr/share/man/man4/uvscom.4.gz
 OLD_FILES+=usr/share/man/man4/zyd.4.gz

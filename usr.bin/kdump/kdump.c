@@ -932,7 +932,6 @@ ktrsyscall(struct ktr_syscall *ktr, u_int sv_flags)
 				ip++;
 				narg--;
 				break;
-			case SYS_mknod:
 			case SYS_mknodat:
 				print_number(ip, narg, c);
 				putchar(',');
@@ -1736,8 +1735,6 @@ ktrsockaddr(struct sockaddr *sa)
 {
 /*
  TODO: Support additional address families
-	#include <netnatm/natm.h>
-	struct sockaddr_natm	*natm;
 	#include <netsmb/netbios.h>
 	struct sockaddr_nb	*nb;
 */
