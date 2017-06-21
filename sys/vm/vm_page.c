@@ -171,6 +171,7 @@ static void vm_page_insert_radixdone(vm_page_t m, vm_object_t object,
     vm_page_t mpred);
 static int vm_page_reclaim_run(int req_class, u_long npages, vm_page_t m_run,
     vm_paddr_t high);
+void vm_page_domain_init(void);
 
 SYSINIT(vm_page, SI_SUB_VM, SI_ORDER_SECOND, vm_page_init, NULL);
 
@@ -383,31 +384,45 @@ sysctl_vm_page_blacklist(SYSCTL_HANDLER_ARGS)
 	return (error);
 }
 
-static void
-vm_page_domain_init(struct vm_domain *vmd)
+void
+vm_page_domain_init(void)
 {
+	struct vm_domain *vmd;
 	struct vm_pagequeue *pq;
-	int i;
+	uint64_t free_count;
 
-	vmd->vmd_pagequeues[PQ_INACTIVE].pq_name = "vm inactive pagequeue";
-	vmd->vmd_pagequeues[PQ_INACTIVE].pq_vcnt = vm_cnt.v_inactive_count;
-	vmd->vmd_pagequeues[PQ_ACTIVE].pq_name = "vm active pagequeue";
-	vmd->vmd_pagequeues[PQ_ACTIVE].pq_vcnt = vm_cnt.v_active_count;
-	vmd->vmd_pagequeues[PQ_LAUNDRY].pq_name = "vm laundry pagequeue";
-	vmd->vmd_pagequeues[PQ_LAUNDRY].pq_vcnt = vm_cnt.v_laundry_count;
-	vmd->vmd_pagequeues[PQ_UNSWAPPABLE].pq_name =
-	    "vm unswappable pagequeue";
-	/* Unswappable dirty pages are counted as being in the laundry. */
-	vmd->vmd_pagequeues[PQ_UNSWAPPABLE].pq_vcnt = vm_cnt.v_laundry_count;
-	vmd->vmd_page_count = 0;
-	vmd->vmd_free_count_early = 0;
-	vmd->vmd_segs = 0;
-	vmd->vmd_oom = FALSE;
-	for (i = 0; i < PQ_COUNT; i++) {
-		pq = &vmd->vmd_pagequeues[i];
-		TAILQ_INIT(&pq->pq_pl);
-		mtx_init(&pq->pq_mutex, pq->pq_name, "vm pagequeue",
-		    MTX_DEF | MTX_DUPOK);
+	for (int d = 0; d < vm_ndomains; d++) {
+		vmd = &vm_dom[d];
+		vmd->vmd_pagequeues[PQ_INACTIVE].pq_name =
+		    "vm inactive pagequeue";
+		vmd->vmd_pagequeues[PQ_INACTIVE].pq_vcnt =
+		    vm_cnt.v_inactive_count;
+		vmd->vmd_pagequeues[PQ_ACTIVE].pq_name =
+		    "vm active pagequeue";
+		vmd->vmd_pagequeues[PQ_ACTIVE].pq_vcnt =
+		    vm_cnt.v_active_count;
+		vmd->vmd_pagequeues[PQ_LAUNDRY].pq_name =
+		    "vm laundry pagequeue";
+		vmd->vmd_pagequeues[PQ_LAUNDRY].pq_vcnt =
+		    vm_cnt.v_laundry_count;
+		vmd->vmd_pagequeues[PQ_UNSWAPPABLE].pq_name =
+		    "vm unswappable pagequeue";
+		/*
+		 * Unswappable dirty pages are counted as being
+		 * in the laundry.
+		 */
+		vmd->vmd_pagequeues[PQ_UNSWAPPABLE].pq_vcnt =
+		    vm_cnt.v_laundry_count;
+		free_count = vmd->vmd_free_count_early;
+		vmd->vmd_free_count = counter_u64_alloc(M_WAITOK);
+		counter_u64_add(vmd->vmd_free_count, free_count);
+		vmd->vmd_oom = FALSE;
+		for (int q = 0; q < PQ_COUNT; q++) {
+			pq = &vmd->vmd_pagequeues[q];
+			TAILQ_INIT(&pq->pq_pl);
+			mtx_init(&pq->pq_mutex, pq->pq_name, "vm pagequeue",
+			    MTX_DEF | MTX_DUPOK);
+		}
 	}
 }
 
@@ -458,8 +473,6 @@ vm_page_startup(vm_offset_t vaddr)
 	mtx_init(&vm_page_queue_free_mtx, "vm page free queue", NULL, MTX_DEF);
 	for (i = 0; i < PA_LOCK_COUNT; i++)
 		mtx_init(&pa_lock[i], "vm page", NULL, MTX_DEF);
-	for (i = 0; i < vm_ndomains; i++)
-		vm_page_domain_init(&vm_dom[i]);
 
 	/*
 	 * Almost all of the pages needed for bootstrapping UMA are used

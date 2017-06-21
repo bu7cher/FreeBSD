@@ -113,13 +113,6 @@ vm_meter_startup(void)
 	free_count = vm_cnt.v_free_count_early;
 	COUNTER_ARRAY_ALLOC(cnt, VM_METER_NCOUNTERS, M_WAITOK);
 	counter_u64_add(vm_cnt.v_free_count, free_count);
-
-	for (int i = 0; i < vm_ndomains; i++) {
-		free_count = vm_dom[i].vmd_free_count_early;
-		vm_dom[i].vmd_free_count = counter_u64_alloc(M_WAITOK);
-		counter_u64_add(vm_dom[i].vmd_free_count, free_count);
-	}
-
 	vm_cnt.v_meter_initialized = 1;
 }
 
