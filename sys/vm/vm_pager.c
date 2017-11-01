@@ -103,11 +103,6 @@ static int pbuf_init(void *, int, int);
 static int pbuf_ctor(void *, int, void *, int);
 static void pbuf_dtor(void *, int, void *);
 
-struct pbuf_container {
-	struct buf	buf;
-	void		*kva;
-};
-
 static int
 dead_pager_getpages(vm_object_t obj, vm_page_t *ma, int count, int *rbehind,
     int *rahead)
@@ -218,8 +213,7 @@ vm_pager_bufferinit(void)
 
 	cluster_pbuf_freecnt = nswbuf / 2;
 
-	vnode_pager_zone = uma_zcreate("vnode pager",
-	    sizeof(struct pbuf_container),
+	vnode_pager_zone = uma_zcreate("pbuf", sizeof(struct buf),
 	    pbuf_ctor, pbuf_dtor, pbuf_init, NULL, UMA_ALIGN_CACHE,
 	    UMA_ZONE_VM | UMA_ZONE_NOFREE);
 	uma_prealloc(vnode_pager_zone, nswbuf * 2);
@@ -500,8 +494,7 @@ relpbuf(struct buf *bp, int *pfreecnt)
 static int
 pbuf_ctor(void *mem, int size, void *arg, int flags)
 {
-	struct pbuf_container *pc = mem;
-	struct buf *bp = &pc->buf;
+	struct buf *bp = mem;
 
 	bp->b_vp = NULL;
 	bp->b_bufobj = NULL;
@@ -510,8 +503,7 @@ pbuf_ctor(void *mem, int size, void *arg, int flags)
 	bp->b_rcred = NOCRED;
 	bp->b_wcred = NOCRED;
 	bp->b_qindex = 0;       /* On no queue (QUEUE_NONE) */
-	bp->b_data = bp->b_kvabase = pc->kva;
-	bp->b_kvasize = MAXPHYS;
+	bp->b_data = bp->b_kvabase;
 	bp->b_xflags = 0;
 	bp->b_flags = 0;
 	bp->b_ioflags = 0;
@@ -542,16 +534,17 @@ pbuf_dtor(void *mem, int size, void *arg)
 static int
 pbuf_init(void *mem, int size, int flags)
 {
-	struct pbuf_container *pc = mem;
-	struct buf *bp = &pc->buf;
+	struct buf *bp = mem;
 
+	bp->b_kvabase = (void *)kva_alloc(MAXPHYS);
+	if (bp->b_kvabase == NULL)
+		return (ENOMEM);
+	bp->b_kvasize = MAXPHYS;
 	BUF_LOCKINIT(bp);
 	LIST_INIT(&bp->b_dep);
 	bp->b_rcred = bp->b_wcred = NOCRED;
 	bp->b_xflags = 0;
-	pc->kva = (void *)kva_alloc(MAXPHYS);
-	if (pc->kva == NULL)
-		return (ENOMEM);
+
 	return (0);
 }
 
