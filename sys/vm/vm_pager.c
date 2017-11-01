@@ -85,8 +85,11 @@ __FBSDID("$FreeBSD$");
 #include <vm/vm_page.h>
 #include <vm/vm_pager.h>
 #include <vm/vm_extern.h>
+#include <vm/uma.h>
 
 int cluster_pbuf_freecnt = -1;	/* unlimited to begin with */
+
+uma_zone_t vnode_pager_zone;
 
 struct buf *swbuf;
 
@@ -96,6 +99,14 @@ static vm_object_t dead_pager_alloc(void *, vm_ooffset_t, vm_prot_t,
 static void dead_pager_putpages(vm_object_t, vm_page_t *, int, int, int *);
 static boolean_t dead_pager_haspage(vm_object_t, vm_pindex_t, int *, int *);
 static void dead_pager_dealloc(vm_object_t);
+static int pbuf_init(void *, int, int);
+static int pbuf_ctor(void *, int, void *, int);
+static void pbuf_dtor(void *, int, void *);
+
+struct pbuf_container {
+	struct buf	buf;
+	void		*kva;
+};
 
 static int
 dead_pager_getpages(vm_object_t obj, vm_page_t *ma, int count, int *rbehind,
@@ -206,8 +217,13 @@ vm_pager_bufferinit(void)
 	}
 
 	cluster_pbuf_freecnt = nswbuf / 2;
-	vnode_pbuf_freecnt = nswbuf / 2 + 1;
-	vnode_async_pbuf_freecnt = nswbuf / 2;
+
+	vnode_pager_zone = uma_zcreate("vnode pager",
+	    sizeof(struct pbuf_container),
+	    pbuf_ctor, pbuf_dtor, pbuf_init, NULL, UMA_ALIGN_CACHE,
+	    UMA_ZONE_VM | UMA_ZONE_NOFREE);
+	uma_prealloc(vnode_pager_zone, nswbuf * 2);
+	uma_zone_set_max(vnode_pager_zone, nswbuf * 40);
 }
 
 /*
@@ -479,6 +495,64 @@ relpbuf(struct buf *bp, int *pfreecnt)
 			wakeup(pfreecnt);
 	}
 	mtx_unlock(&pbuf_mtx);
+}
+
+static int
+pbuf_ctor(void *mem, int size, void *arg, int flags)
+{
+	struct pbuf_container *pc = mem;
+	struct buf *bp = &pc->buf;
+
+	bp->b_vp = NULL;
+	bp->b_bufobj = NULL;
+
+	/* copied from initpbuf() */
+	bp->b_rcred = NOCRED;
+	bp->b_wcred = NOCRED;
+	bp->b_qindex = 0;       /* On no queue (QUEUE_NONE) */
+	bp->b_data = bp->b_kvabase = pc->kva;
+	bp->b_kvasize = MAXPHYS;
+	bp->b_xflags = 0;
+	bp->b_flags = 0;
+	bp->b_ioflags = 0;
+	bp->b_iodone = NULL;
+	bp->b_error = 0;
+	BUF_LOCK(bp, LK_EXCLUSIVE, NULL);
+
+	return (0);
+}
+
+static void
+pbuf_dtor(void *mem, int size, void *arg)
+{
+	struct buf *bp = mem;
+
+	if (bp->b_rcred != NOCRED) {
+		crfree(bp->b_rcred);
+		bp->b_rcred = NOCRED;
+	}
+	if (bp->b_wcred != NOCRED) {
+		crfree(bp->b_wcred);
+		bp->b_wcred = NOCRED;
+	}
+
+	BUF_UNLOCK(bp);
+}
+
+static int
+pbuf_init(void *mem, int size, int flags)
+{
+	struct pbuf_container *pc = mem;
+	struct buf *bp = &pc->buf;
+
+	BUF_LOCKINIT(bp);
+	LIST_INIT(&bp->b_dep);
+	bp->b_rcred = bp->b_wcred = NOCRED;
+	bp->b_xflags = 0;
+	pc->kva = (void *)kva_alloc(MAXPHYS);
+	if (pc->kva == NULL)
+		return (ENOMEM);
+	return (0);
 }
 
 /*

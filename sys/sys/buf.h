@@ -44,6 +44,7 @@
 #include <sys/queue.h>
 #include <sys/lock.h>
 #include <sys/lockmgr.h>
+#include <vm/uma.h>
 
 struct bio;
 struct buf;
@@ -494,9 +495,7 @@ extern int	dirtybufferflushes;
 extern int	altbufferflushes;
 extern int	nswbuf;			/* Number of swap I/O buffer headers. */
 extern int	cluster_pbuf_freecnt;	/* Number of pbufs for clusters */
-extern int	vnode_pbuf_freecnt;	/* Number of pbufs for vnode pager */
-extern int	vnode_async_pbuf_freecnt; /* Number of pbufs for vnode pager,
-					     asynchronous reads */
+extern uma_zone_t vnode_pager_zone;
 extern caddr_t	unmapped_buf;	/* Data address for unmapped buffers. */
 
 static inline int

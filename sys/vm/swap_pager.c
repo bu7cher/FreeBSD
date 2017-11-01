@@ -2627,6 +2627,7 @@ swapgeom_done(struct bio *bp2)
 		bp->b_ioflags |= BIO_ERROR;
 	bp->b_resid = bp->b_bcount - bp2->bio_completed;
 	bp->b_error = bp2->bio_error;
+	bp->b_caller1 = NULL;
 	bufdone(bp);
 	sp = bp2->bio_caller1;
 	mtx_lock(&sw_dev_mtx);
@@ -2666,6 +2667,7 @@ swapgeom_strategy(struct buf *bp, struct swdevt *sp)
 		return;
 	}
 
+	bp->b_caller1 = bio;
 	bio->bio_caller1 = sp;
 	bio->bio_caller2 = bp;
 	bio->bio_cmd = bp->b_iocmd;
