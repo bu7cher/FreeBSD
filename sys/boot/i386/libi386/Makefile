@@ -6,16 +6,16 @@ INTERNALLIB=
 SRCS=	biosacpi.c bioscd.c biosdisk.c biosmem.c biospnp.c \
 	biospci.c biossmap.c bootinfo.c bootinfo32.c bootinfo64.c \
 	comconsole.c devicename.c elf32_freebsd.c \
-	elf64_freebsd.c multiboot.c multiboot_tramp.S \
+	elf64_freebsd.c multiboot.c multiboot_tramp.S relocater_tramp.S \
 	i386_copy.c i386_module.c nullconsole.c pxe.c pxetramp.s \
 	smbios.c time.c vidconsole.c amd64_tramp.S spinconsole.c
 .PATH:	${.CURDIR}/../../zfs
 SRCS+=	devicename_stubs.c
 
-# Enable PXE TFTP or NFS support, not both.
 .if defined(LOADER_TFTP_SUPPORT)
 CFLAGS+=	-DLOADER_TFTP_SUPPORT
-.else
+.endif
+.if defined(LOADER_NFS_SUPPORT)
 CFLAGS+=	-DLOADER_NFS_SUPPORT
 .endif
 
@@ -59,8 +59,6 @@ CFLAGS+=	-I${.CURDIR}/../../ficl -I${.CURDIR}/../../ficl/i386 \
 		-I${.CURDIR}/../btx/lib \
 		-I${.CURDIR}/../../../contrib/dev/acpica/include \
 		-I${.CURDIR}/../../.. -I.
-# the location of libstand
-CFLAGS+=	-I${.CURDIR}/../../../../lib/libstand/
 
 # Handle FreeBSD specific %b and %D printf format specifiers
 CFLAGS+= ${FORMAT_EXTENSIONS}

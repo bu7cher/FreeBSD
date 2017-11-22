@@ -209,12 +209,10 @@ uiomove_object_page(vm_object_t obj, size_t len, struct uio *uio)
 	}
 	vm_page_lock(m);
 	vm_page_hold(m);
-	if (m->queue == PQ_NONE) {
-		vm_page_deactivate(m);
-	} else {
-		/* Requeue to maintain LRU ordering. */
-		vm_page_requeue(m);
-	}
+	if (vm_page_active(m))
+		vm_page_reference(m);
+	else
+		vm_page_activate(m);
 	vm_page_unlock(m);
 	VM_OBJECT_WUNLOCK(obj);
 	error = uiomove_fromphys(&m, offset, tlen, uio);
@@ -926,7 +924,7 @@ shm_mmap(struct file *fp, vm_map_t map, vm_offset_t *addr, vm_size_t objsize,
 	    shmfd->shm_object, foff, FALSE, td);
 	if (error != 0)
 		vm_object_deallocate(shmfd->shm_object);
-	return (0);
+	return (error);
 }
 
 static int

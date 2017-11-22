@@ -76,6 +76,7 @@
 #include <sys/acl.h>
 #include <sys/vmmeter.h>
 #include <vm/vm_param.h>
+#include <sys/zil.h>
 
 /*
  * Programming rules.
@@ -905,9 +906,11 @@ zfs_write(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr, caller_context_t *ct)
 	}
 
 	/*
-	 * If immutable or not appending then return EPERM
+	 * If immutable or not appending then return EPERM.
+	 * Intentionally allow ZFS_READONLY through here.
+	 * See zfs_zaccess_common()
 	 */
-	if ((zp->z_pflags & (ZFS_IMMUTABLE | ZFS_READONLY)) ||
+	if ((zp->z_pflags & ZFS_IMMUTABLE) ||
 	    ((zp->z_pflags & ZFS_APPENDONLY) && !(ioflag & FAPPEND) &&
 	    (uio->uio_loffset < zp->z_size))) {
 		ZFS_EXIT(zfsvfs);
@@ -1274,7 +1277,7 @@ zfs_get_done(zgd_t *zgd, int error)
 	VN_RELE_ASYNC(ZTOV(zp), dsl_pool_vnrele_taskq(dmu_objset_pool(os)));
 
 	if (error == 0 && zgd->zgd_bp)
-		zil_add_block(zgd->zgd_zilog, zgd->zgd_bp);
+		zil_lwb_add_block(zgd->zgd_lwb, zgd->zgd_bp);
 
 	kmem_free(zgd, sizeof (zgd_t));
 }
@@ -1287,7 +1290,7 @@ static int zil_fault_io = 0;
  * Get data to generate a TX_WRITE intent log record.
  */
 int
-zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
+zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 {
 	zfsvfs_t *zfsvfs = arg;
 	objset_t *os = zfsvfs->z_os;
@@ -1295,13 +1298,13 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	uint64_t object = lr->lr_foid;
 	uint64_t offset = lr->lr_offset;
 	uint64_t size = lr->lr_length;
-	blkptr_t *bp = &lr->lr_blkptr;
 	dmu_buf_t *db;
 	zgd_t *zgd;
 	int error = 0;
 
-	ASSERT(zio != NULL);
-	ASSERT(size != 0);
+	ASSERT3P(lwb, !=, NULL);
+	ASSERT3P(zio, !=, NULL);
+	ASSERT3U(size, !=, 0);
 
 	/*
 	 * Nothing to do if the file has been removed
@@ -1319,7 +1322,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	}
 
 	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
-	zgd->zgd_zilog = zfsvfs->z_log;
+	zgd->zgd_lwb = lwb;
 	zgd->zgd_private = zp;
 
 	/*
@@ -1342,7 +1345,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	} else { /* indirect write */
 		/*
 		 * Have to lock the whole block to ensure when it's
-		 * written out and it's checksum is being calculated
+		 * written out and its checksum is being calculated
 		 * that no one can change the data. We need to re-check
 		 * blocksize after we get the lock in case it's changed!
 		 */
@@ -1372,11 +1375,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 			    DMU_READ_NO_PREFETCH);
 
 		if (error == 0) {
-			blkptr_t *obp = dmu_buf_get_blkptr(db);
-			if (obp) {
-				ASSERT(BP_IS_HOLE(bp));
-				*bp = *obp;
-			}
+			blkptr_t *bp = &lr->lr_blkptr;
 
 			zgd->zgd_db = db;
 			zgd->zgd_bp = bp;
@@ -1386,7 +1385,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 
 			error = dmu_sync(zio, lr->lr_common.lrc_txg,
 			    zfs_get_done, zgd);
-			ASSERT(error || lr->lr_length <= zp->z_blksz);
+			ASSERT(error || lr->lr_length <= size);
 
 			/*
 			 * On success, we need to wait for the write I/O
@@ -1635,7 +1634,7 @@ zfs_lookup(vnode_t *dvp, char *nm, vnode_t **vpp, struct componentname *cnp,
 				cn.cn_nameptr = "snapshot";
 				cn.cn_namelen = strlen(cn.cn_nameptr);
 				cn.cn_nameiop = cnp->cn_nameiop;
-				cn.cn_flags = cnp->cn_flags;
+				cn.cn_flags = cnp->cn_flags & ~ISDOTDOT;
 				cn.cn_lkflags = cnp->cn_lkflags;
 				error = VOP_LOOKUP(zfsctl_vp, vpp, &cn);
 				vput(zfsctl_vp);
@@ -2708,7 +2707,7 @@ zfs_getattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr,
 #ifdef illumos
 	vap->va_fsid = zp->z_zfsvfs->z_vfs->vfs_dev;
 #else
-	vap->va_fsid = vp->v_mount->mnt_stat.f_fsid.val[0];
+	vn_fsid(vp, vap);
 #endif
 	vap->va_nodeid = zp->z_id;
 	if ((vp->v_flag & VROOT) && zfs_show_ctldir(zp))
@@ -2946,10 +2945,9 @@ zfs_setattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr,
 		return (SET_ERROR(EPERM));
 	}
 
-	if ((mask & AT_SIZE) && (zp->z_pflags & ZFS_READONLY)) {
-		ZFS_EXIT(zfsvfs);
-		return (SET_ERROR(EPERM));
-	}
+	/*
+	 * Note: ZFS_READONLY is handled in zfs_zaccess_common.
+	 */
 
 	/*
 	 * Verify timestamps doesn't overflow 32 bits.
@@ -4758,7 +4756,8 @@ zfs_putpages(struct vnode *vp, vm_page_t *ma, size_t len, int flags,
 		    &zp->z_pflags, 8);
 		zfs_tstamp_update_setup(zp, CONTENT_MODIFIED, mtime, ctime,
 		    B_TRUE);
-		(void)sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
+		err = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
+		ASSERT0(err);
 		zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, off, len, 0);
 
 		zfs_vmobject_wlock(object);
@@ -5928,7 +5927,6 @@ zfs_vptocnp(struct vop_vptocnp_args *ap)
 	vnode_t *vp = ap->a_vp;;
 	zfsvfs_t *zfsvfs = vp->v_vfsp->vfs_data;
 	znode_t *zp = VTOZ(vp);
-	uint64_t parent;
 	int ltype;
 	int error;
 
@@ -5939,13 +5937,7 @@ zfs_vptocnp(struct vop_vptocnp_args *ap)
 	 * If we are a snapshot mounted under .zfs, run the operation
 	 * on the covered vnode.
 	 */
-	if ((error = sa_lookup(zp->z_sa_hdl,
-	    SA_ZPL_PARENT(zfsvfs), &parent, sizeof (parent))) != 0) {
-		ZFS_EXIT(zfsvfs);
-		return (error);
-	}
-
-	if (zp->z_id != parent || zfsvfs->z_parent == zfsvfs) {
+	if (zp->z_id != zfsvfs->z_root || zfsvfs->z_parent == zfsvfs) {
 		char name[MAXNAMLEN + 1];
 		znode_t *dzp;
 		size_t len;

@@ -33,6 +33,8 @@ __FBSDID("$FreeBSD$");
  * This supports both eSDHC (earlier SoCs) and uSDHC (more recent SoCs).
  */
 
+#include "opt_mmccam.h"
+
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/types.h>
@@ -988,4 +990,7 @@ static driver_t fsl_sdhci_driver = {
 DRIVER_MODULE(sdhci_fsl, simplebus, fsl_sdhci_driver, fsl_sdhci_devclass,
     NULL, NULL);
 MODULE_DEPEND(sdhci_fsl, sdhci, 1, 1, 1);
+
+#ifndef MMCCAM
 MMC_DECLARE_BRIDGE(sdhci_fsl);
+#endif

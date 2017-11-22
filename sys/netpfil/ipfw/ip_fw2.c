@@ -92,6 +92,8 @@ __FBSDID("$FreeBSD$");
 #include <netinet6/ip6_var.h>
 #endif
 
+#include <net/if_gre.h> /* for struct grehdr */
+
 #include <netpfil/ipfw/ip_fw_private.h>
 
 #include <machine/in_cksum.h>	/* XXX for in_cksum */
@@ -1162,6 +1164,11 @@ do {								\
 				PULLUP_TO(hlen, ulp, struct pim);
 				break;
 
+			case IPPROTO_GRE:	/* RFC 1701 */
+				/* XXX GRE header check? */
+				PULLUP_TO(hlen, ulp, struct grehdr);
+				break;
+
 			case IPPROTO_CARP:
 				PULLUP_TO(hlen, ulp, struct carp_header);
 				if (((struct carp_header *)ulp)->carp_version !=
@@ -1602,10 +1609,7 @@ do {								\
 
 			case O_IP_SRC_ME:
 				if (is_ipv4) {
-					struct ifnet *tif;
-
-					INADDR_TO_IFP(src_ip, tif);
-					match = (tif != NULL);
+					match = in_localip(src_ip);
 					break;
 				}
 #ifdef INET6
@@ -1641,10 +1645,7 @@ do {								\
 
 			case O_IP_DST_ME:
 				if (is_ipv4) {
-					struct ifnet *tif;
-
-					INADDR_TO_IFP(dst_ip, tif);
-					match = (tif != NULL);
+					match = in_localip(dst_ip);
 					break;
 				}
 #ifdef INET6
@@ -1662,8 +1663,8 @@ do {								\
 				 * to guarantee that we have a
 				 * packet with port info.
 				 */
-				if ((proto==IPPROTO_UDP || proto==IPPROTO_TCP)
-				    && offset == 0) {
+				if ((proto==IPPROTO_UDP || proto==IPPROTO_TCP ||
+				    proto==IPPROTO_SCTP) && offset == 0) {
 					u_int16_t x =
 					    (cmd->opcode == O_IP_SRCPORT) ?
 						src_port : dst_port ;

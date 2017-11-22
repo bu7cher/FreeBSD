@@ -60,6 +60,12 @@ struct vmtotal {
 #if defined(_KERNEL) || defined(_WANT_VMMETER)
 #include <sys/counter.h>
 
+#ifdef _KERNEL
+#define VMMETER_ALIGNED	__aligned(CACHE_LINE_SIZE)
+#else
+#define VMMETER_ALIGNED
+#endif
+
 /*
  * System wide statistics counters.
  * Locking:

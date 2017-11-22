@@ -16,8 +16,8 @@ MK_SSP=	no
 
 LIB=thr
 SHLIB_MAJOR= 3
-WARNS?=	3
 NO_WTHREAD_SAFETY=1
+NO_WCAST_ALIGN.gcc=1    # for gcc 4.2
 CFLAGS+=-DPTHREAD_KERNEL
 CFLAGS+=-I${SRCTOP}/lib/libc/include -I${.CURDIR}/thread \
 	-I${SRCTOP}/include
@@ -69,8 +69,7 @@ SYMLINKS+=lib${LIB}.so ${LIBDIR}/libpthread.so
 SYMLINKS+=lib${LIB}_p.a ${LIBDIR}/libpthread_p.a
 .endif
 
-.if ${MK_TESTS} != "no"
-SUBDIR+=	tests
-.endif
+HAS_TESTS=
+SUBDIR.${MK_TESTS}+= tests
 
 .include <bsd.lib.mk>

@@ -140,7 +140,7 @@ struct lock_class lock_class_mtx_spin = {
 #ifdef ADAPTIVE_MUTEXES
 static SYSCTL_NODE(_debug, OID_AUTO, mtx, CTLFLAG_RD, NULL, "mtx debugging");
 
-static struct lock_delay_config __read_mostly mtx_delay;
+static struct lock_delay_config __read_frequently mtx_delay;
 
 SYSCTL_INT(_debug_mtx, OID_AUTO, delay_base, CTLFLAG_RW, &mtx_delay.base,
     0, "");
@@ -153,7 +153,7 @@ LOCK_DELAY_SYSINIT_DEFAULT(mtx_delay);
 static SYSCTL_NODE(_debug, OID_AUTO, mtx_spin, CTLFLAG_RD, NULL,
     "mtx spin debugging");
 
-static struct lock_delay_config __read_mostly mtx_spin_delay;
+static struct lock_delay_config __read_frequently mtx_spin_delay;
 
 SYSCTL_INT(_debug_mtx_spin, OID_AUTO, delay_base, CTLFLAG_RW,
     &mtx_spin_delay.base, 0, "");
@@ -166,7 +166,7 @@ LOCK_DELAY_SYSINIT_DEFAULT(mtx_spin_delay);
  * System-wide mutexes
  */
 struct mtx blocked_lock;
-struct mtx Giant;
+struct mtx __exclusive_cache_line Giant;
 
 void
 assert_mtx(const struct lock_object *lock, int what)
@@ -233,7 +233,8 @@ __mtx_lock_flags(volatile uintptr_t *c, int opts, const char *file, int line)
 
 	m = mtxlock2mtx(c);
 
-	KASSERT(kdb_active != 0 || !TD_IS_IDLETHREAD(curthread),
+	KASSERT(kdb_active != 0 || SCHEDULER_STOPPED() ||
+	    !TD_IS_IDLETHREAD(curthread),
 	    ("mtx_lock() by idle thread %p on sleep mutex %s @ %s:%d",
 	    curthread, m->lock_object.lo_name, file, line));
 	KASSERT(m->mtx_lock != MTX_DESTROYED,
@@ -247,7 +248,7 @@ __mtx_lock_flags(volatile uintptr_t *c, int opts, const char *file, int line)
 	tid = (uintptr_t)curthread;
 	v = MTX_UNOWNED;
 	if (!_mtx_obtain_lock_fetch(m, &v, tid))
-		_mtx_lock_sleep(m, v, tid, opts, file, line);
+		_mtx_lock_sleep(m, v, opts, file, line);
 	else
 		LOCKSTAT_PROFILE_OBTAIN_LOCK_SUCCESS(adaptive__acquire,
 		    m, 0, 0, file, line);
@@ -390,7 +391,7 @@ _mtx_trylock_flags_(volatile uintptr_t *c, int opts, const char *file, int line)
 
 	m = mtxlock2mtx(c);
 
-	KASSERT(kdb_active != 0 || !TD_IS_IDLETHREAD(curthread),
+	KASSERT(kdb_active != 0 || !TD_IS_IDLETHREAD(td),
 	    ("mtx_trylock() by idle thread %p on sleep mutex %s @ %s:%d",
 	    curthread, m->lock_object.lo_name, file, line));
 	KASSERT(m->mtx_lock != MTX_DESTROYED,
@@ -410,10 +411,10 @@ _mtx_trylock_flags_(volatile uintptr_t *c, int opts, const char *file, int line)
 		if (v == tid &&
 		    ((m->lock_object.lo_flags & LO_RECURSABLE) != 0 ||
 		    (opts & MTX_RECURSE) != 0)) {
-				 m->mtx_recurse++;
-				 atomic_set_ptr(&m->mtx_lock, MTX_RECURSED);
-				 recursed = true;
-				 break;
+			m->mtx_recurse++;
+			atomic_set_ptr(&m->mtx_lock, MTX_RECURSED);
+			recursed = true;
+			break;
 		}
 		rval = 0;
 		break;
@@ -442,15 +443,17 @@ _mtx_trylock_flags_(volatile uintptr_t *c, int opts, const char *file, int line)
  */
 #if LOCK_DEBUG > 0
 void
-__mtx_lock_sleep(volatile uintptr_t *c, uintptr_t v, uintptr_t tid, int opts,
-    const char *file, int line)
+__mtx_lock_sleep(volatile uintptr_t *c, uintptr_t v, int opts, const char *file,
+    int line)
 #else
 void
-__mtx_lock_sleep(volatile uintptr_t *c, uintptr_t v, uintptr_t tid)
+__mtx_lock_sleep(volatile uintptr_t *c, uintptr_t v)
 #endif
 {
+	struct thread *td;
 	struct mtx *m;
 	struct turnstile *ts;
+	uintptr_t tid;
 #ifdef ADAPTIVE_MUTEXES
 	volatile struct thread *owner;
 #endif
@@ -472,8 +475,9 @@ __mtx_lock_sleep(volatile uintptr_t *c, uintptr_t v, uintptr_t tid)
 #if defined(KDTRACE_HOOKS) || defined(LOCK_PROFILING)
 	int doing_lockprof;
 #endif
-
-	if (SCHEDULER_STOPPED())
+	td = curthread;
+	tid = (uintptr_t)td;
+	if (SCHEDULER_STOPPED_TD(td))
 		return;
 
 #if defined(ADAPTIVE_MUTEXES)
@@ -485,7 +489,7 @@ __mtx_lock_sleep(volatile uintptr_t *c, uintptr_t v, uintptr_t tid)
 	if (__predict_false(v == MTX_UNOWNED))
 		v = MTX_READ_VALUE(m);
 
-	if (__predict_false(lv_mtx_owner(v) == (struct thread *)tid)) {
+	if (__predict_false(lv_mtx_owner(v) == td)) {
 		KASSERT((m->lock_object.lo_flags & LO_RECURSABLE) != 0 ||
 		    (opts & MTX_RECURSE) != 0,
 	    ("_mtx_lock_sleep: recursed on non-recursive mutex %s @ %s:%d\n",
@@ -765,7 +769,7 @@ _mtx_lock_spin_cookie(volatile uintptr_t *c, uintptr_t v, uintptr_t tid,
 	LOCKSTAT_PROFILE_OBTAIN_LOCK_SUCCESS(spin__acquire, m,
 	    contested, waittime, file, line);
 #ifdef KDTRACE_HOOKS
-	if (spin_time != 0)
+	if (lda.spin_cnt != 0)
 		LOCKSTAT_RECORD1(spin__spin, m, spin_time);
 #endif
 }
@@ -878,7 +882,7 @@ retry:
 		LOCKSTAT_PROFILE_OBTAIN_LOCK_SUCCESS(spin__acquire, m,
 		    contested, waittime, file, line);
 #ifdef KDTRACE_HOOKS
-	if (spin_time != 0)
+	if (lda.spin_cnt != 0)
 		LOCKSTAT_RECORD1(thread__spin, m, spin_time);
 #endif
 }

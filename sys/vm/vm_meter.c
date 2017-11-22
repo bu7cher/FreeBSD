@@ -60,7 +60,7 @@ __FBSDID("$FreeBSD$");
 extern void pcpu_zones_startup(void);
 void vm_meter_startup(void);
 
-struct vmmeter vm_cnt = {
+struct vmmeter __exclusive_cache_line vm_cnt = {
 	.v_swtch = EARLY_COUNTER,
 	.v_trap = EARLY_COUNTER,
 	.v_syscall = EARLY_COUNTER,

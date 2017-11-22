@@ -16,7 +16,7 @@ SRCS=	autoload.c \
 	bootinfo.c \
 	conf.c \
 	copy.c \
-	devicename.c \
+	efi_main.c \
 	main.c \
 	self_reloc.c \
 	smbios.c \
@@ -34,10 +34,6 @@ CFLAGS+=	-DSKEIN_LOOP=111
 CWARNFLAGS.zfs.c+=	-Wno-sign-compare
 CWARNFLAGS.zfs.c+=	-Wno-array-bounds
 CWARNFLAGS.zfs.c+=	-Wno-missing-prototypes
-.endif
-
-.if defined(LOADER_NET_SUPPORT)
-CFLAGS+=	-I${.CURDIR}/../../../../lib/libstand
 .endif
 
 .if ${COMPILER_TYPE} == "gcc" && ${COMPILER_VERSION} > 40201
@@ -70,12 +66,6 @@ CFLAGS+=	-I${.CURDIR}/../../../crypto/skein
 CFLAGS+=	-DEFI_ZFS_BOOT
 .endif
 CFLAGS+=	-DNO_PCI -DEFI
-
-# make buildenv doesn't set DESTDIR, this means LIBSTAND
-# will be wrong when crossbuilding.
-.if exists(${.OBJDIR}/../../../../lib/libstand/libstand.a)
-LIBSTAND=	${.OBJDIR}/../../../../lib/libstand/libstand.a
-.endif
 
 .if !defined(BOOT_HIDE_SERIAL_NUMBERS)
 # Export serial numbers, UUID, and asset tag from loader.
@@ -122,7 +112,7 @@ FILES+=	loader.efi
 FILESMODE_loader.efi=	${BINMODE}
 
 LDSCRIPT=	${.CURDIR}/arch/${MACHINE}/ldscript.${MACHINE}
-LDFLAGS+=	-Wl,-T${LDSCRIPT} -Wl,-Bsymbolic -shared
+LDFLAGS+=	-Wl,-T${LDSCRIPT},-Bsymbolic,-znotext -shared
 
 CLEANFILES+=	loader.efi
 
@@ -156,9 +146,9 @@ loader.efi: ${PROG}
 
 LIBEFI=		${.OBJDIR}/../libefi/libefi.a
 
-DPADD=		${LIBFICL} ${LIBEFI} ${LIBFDT} ${LIBEFI_FDT} ${LIBSTAND} \
+DPADD=		${LIBFICL} ${LIBEFI} ${LIBFDT} ${LIBEFI_FDT} ${LIBSA} \
 		${LDSCRIPT}
-LDADD=		${LIBFICL} ${LIBEFI} ${LIBFDT} ${LIBEFI_FDT} ${LIBSTAND}
+LDADD=		${LIBFICL} ${LIBEFI} ${LIBFDT} ${LIBEFI_FDT} ${LIBSA}
 
 .include <bsd.prog.mk>
 

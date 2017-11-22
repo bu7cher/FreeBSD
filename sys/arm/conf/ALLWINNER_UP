@@ -20,7 +20,7 @@
 
 ident		ALLWINNER_UP
 
-include 	"std.armv6"
+include 	"std.armv7"
 include 	"../allwinner/std.allwinner_up"
 
 options 	INTRNG
@@ -30,7 +30,6 @@ options 	SOC_ALLWINNER_A13
 
 options 	SCHED_4BSD		# 4BSD scheduler
 options 	PLATFORM
-options 	MULTIDELAY
 
 # NFS root from boopt/dhcp
 #options 	BOOTP

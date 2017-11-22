@@ -8,13 +8,23 @@
     bin
         cat
         ..
+        chflags
+        ..
+        chmod
+        ..
         date
         ..
         dd
         ..
+        echo
+        ..
         expr
         ..
+        ln
+        ..
         ls
+        ..
+        mkdir
         ..
         mv
         ..
@@ -24,6 +34,8 @@
         ..
         pwait
         ..
+        rmdir
+        ..
         sh
             builtins
             ..
@@ -32,6 +44,8 @@
             execution
             ..
             expansion
+            ..
+            invocation
             ..
             parameters
             ..
@@ -372,6 +386,10 @@
         ..
         mdconfig
         ..
+        pfctl
+            files
+            ..
+        ..
     ..
     secure
         lib
@@ -390,7 +408,11 @@
                 ..
                 plain
                 ..
+                tap
+                ..
             ..
+        ..
+        zoneinfo
         ..
     ..
     sys
@@ -454,6 +476,10 @@
         ..
         netinet
         ..
+        netpfil
+            pf
+            ..
+        ..
         opencrypto
         ..
         pjdfstest
@@ -486,6 +512,8 @@
             truncate
             ..
             unlink
+            ..
+            utimensat
             ..
         ..
         posixshm
@@ -622,6 +650,8 @@
         ..
         dirname
         ..
+        du
+        ..
         file2c
         ..
         getconf
@@ -629,6 +659,8 @@
         grep
         ..
         gzip
+        ..
+        hexdump
         ..
         ident
         ..
@@ -663,6 +695,8 @@
             ..
         ..
         soelim
+        ..
+        stat
         ..
         tail
         ..

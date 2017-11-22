@@ -35,6 +35,7 @@ SUBDIR=	\
 	alq \
 	${_amd_ecc_inject} \
 	${_amdsbwd} \
+	${_amdsmn} \
 	${_amdtemp} \
 	amr \
 	${_an} \
@@ -128,6 +129,7 @@ SUBDIR=	\
 	fdc \
 	fdescfs \
 	${_fe} \
+	${_ffec} \
 	filemon \
 	firewire \
 	firmware \
@@ -224,6 +226,7 @@ SUBDIR=	\
 	${_linux_common} \
 	${_linux64} \
 	linuxkpi \
+	${_lio} \
 	lmc \
 	lpt \
 	mac_biba \
@@ -249,6 +252,7 @@ SUBDIR=	\
 	${_mlx4en} \
 	${_mlx5} \
 	${_mlx5en} \
+	${_mlx5ib} \
 	${_mly} \
 	mmc \
 	mmcsd \
@@ -345,6 +349,8 @@ SUBDIR=	\
 	${_sf} \
 	${_sfxge} \
 	sge \
+	${_sgx} \
+	${_sgx_linux} \
 	siba_bwn \
 	siftr \
 	siis \
@@ -420,7 +426,7 @@ _autofs=	autofs
 .endif
 
 .if ${MK_CDDL} != "no" || defined(ALL_MODULES)
-.if (${MACHINE_CPUARCH} != "arm" || ${MACHINE_ARCH:Marmv6*} != "") && \
+.if (${MACHINE_CPUARCH} != "arm" || ${MACHINE_ARCH:Marmv[67]*} != "") && \
 	${MACHINE_CPUARCH} != "mips" && \
 	${MACHINE_CPUARCH} != "sparc64"
 SUBDIR+=	dtrace
@@ -556,6 +562,7 @@ _cxgb=		cxgb
 
 .if ${MACHINE_CPUARCH} == "aarch64"
 _armv8crypto=	armv8crypto
+_efirt=		efirt
 _em=		em
 .endif
 
@@ -565,7 +572,9 @@ _an=		an
 _aout=		aout
 _bios=		bios
 _bktr=		bktr
+.if ${MK_SOURCELESS_UCODE} != "no"
 _bxe=		bxe
+.endif
 _cardbus=	cardbus
 _cbb=		cbb
 _cpuctl=	cpuctl
@@ -620,6 +629,7 @@ _aesni=		aesni
 .endif
 _amd_ecc_inject=amd_ecc_inject
 _amdsbwd=	amdsbwd
+_amdsmn=	amdsmn
 _amdtemp=	amdtemp
 _arcmsr=	arcmsr
 _asmc=		asmc
@@ -665,6 +675,7 @@ _mlx5en=	mlx5en
 .endif
 .if ${MK_OFED} != "no" || defined(ALL_MODULES)
 _mlx4ib=	mlx4ib
+_mlx5ib=	mlx5ib
 .endif
 _mly=		mly
 .if ${MK_OFED} != "no" || defined(ALL_MODULES)
@@ -701,13 +712,20 @@ _ixl=		ixl
 _ixlv=		ixlv
 _linux64=	linux64
 _linux_common=	linux_common
+.if ${MK_SOURCELESS_UCODE} != "no"
+_lio=		lio
+.endif
 _ntb=		ntb
 _pms=		pms
 _qlxge=		qlxge
 _qlxgb=		qlxgb
+.if ${MK_SOURCELESS_UCODE} != "no"
 _qlxgbe=	qlxgbe
 _qlnx=		qlnx
+.endif
 _sfxge=		sfxge
+_sgx=		sgx
+_sgx_linux=	sgx_linux
 
 .if ${MK_BHYVE} != "no" || defined(ALL_MODULES)
 _vmm=		vmm
@@ -764,6 +782,7 @@ _cfi=		cfi
 _cpufreq=	cpufreq
 _drm=		drm
 _exca=		exca
+_ffec=		ffec
 _pccard=	pccard
 _wi=		wi
 .endif
@@ -782,7 +801,7 @@ _em=		em
 _epic=		epic
 .endif
 
-.if (${MACHINE_CPUARCH} == "amd64" || ${MACHINE_ARCH} == "armv6" || \
+.if (${MACHINE_CPUARCH} == "amd64" || ${MACHINE_ARCH:Marmv[67]*} != "" || \
      ${MACHINE_CPUARCH} == "i386")
 _cloudabi32=	cloudabi32
 .endif
@@ -790,6 +809,10 @@ _cloudabi32=	cloudabi32
 _cloudabi64=	cloudabi64
 .endif
 
+.endif
+
+.if ${MACHINE_ARCH:Marmv[67]*} != ""
+_ffec=		ffec
 .endif
 
 SUBDIR+=${MODULES_EXTRA}

@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
  */
 
@@ -72,7 +72,7 @@ dmu_tx_create_assigned(struct dsl_pool *dp, uint64_t txg)
 {
 	dmu_tx_t *tx = dmu_tx_create_dd(NULL);
 
-	ASSERT3U(txg, <=, dp->dp_tx.tx_open_txg);
+	txg_verify(dp->dp_spa, txg);
 	tx->tx_pool = dp;
 	tx->tx_txg = txg;
 	tx->tx_anyobj = TRUE;
@@ -806,8 +806,8 @@ dmu_tx_delay(dmu_tx_t *tx, uint64_t dirty)
 		continue;
 	mutex_exit(&curthread->t_delay_lock);
 #else
-	pause_sbt("dmu_tx_delay", wakeup * SBT_1NS,
-	    zfs_delay_resolution_ns * SBT_1NS, C_ABSOLUTE);
+	pause_sbt("dmu_tx_delay", nstosbt(wakeup),
+	    nstosbt(zfs_delay_resolution_ns), C_ABSOLUTE);
 #endif
 #else
 	hrtime_t delta = wakeup - gethrtime();

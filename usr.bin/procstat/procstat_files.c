@@ -400,6 +400,11 @@ procstat_files(struct procstat *procstat, struct kinfo_proc *kipp)
 			xo_emit("{eq:fd_type/sem}");
 			break;
 
+		case PS_FST_TYPE_PROCDESC:
+			str = "P";
+			xo_emit("{eq:fd_type/procdesc}");
+			break;
+
 		case PS_FST_TYPE_NONE:
 			str = "?";
 			xo_emit("{eq:fd_type/none}");
@@ -534,6 +539,12 @@ procstat_files(struct procstat *procstat, struct kinfo_proc *kipp)
 			xo_emit("{:protocol/%-3s/%s} ",
 			    protocol_to_string(sock.dom_family,
 			    sock.type, sock.proto));
+			if (sock.proto == IPPROTO_TCP ||
+			    sock.proto == IPPROTO_SCTP ||
+			    sock.type == SOCK_STREAM) {
+				xo_emit("{:sendq/%u} ", sock.sendq);
+				xo_emit("{:recvq/%u} ", sock.recvq);
+			}
 			/*
 			 * While generally we like to print two addresses,
 			 * local and peer, for sockets, it turns out to be

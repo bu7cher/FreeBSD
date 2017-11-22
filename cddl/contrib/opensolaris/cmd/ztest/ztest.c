@@ -112,6 +112,7 @@
 #include <sys/refcount.h>
 #include <sys/zfeature.h>
 #include <sys/dsl_userhold.h>
+#include <sys/abd.h>
 #include <stdio.h>
 #include <stdio_ext.h>
 #include <stdlib.h>
@@ -190,6 +191,7 @@ extern uint64_t metaslab_df_alloc_threshold;
 extern uint64_t zfs_deadman_synctime_ms;
 extern int metaslab_preload_limit;
 extern boolean_t zfs_compressed_arc_enabled;
+extern boolean_t zfs_abd_scatter_enabled;
 
 static ztest_shared_opts_t *ztest_shared_opts;
 static ztest_shared_opts_t ztest_opts;
@@ -581,6 +583,8 @@ usage(boolean_t requested)
 	    "\t[-F freezeloops (default: %llu)] max loops in spa_freeze()\n"
 	    "\t[-P passtime (default: %llu sec)] time per pass\n"
 	    "\t[-B alt_ztest (default: <none>)] alternate ztest path\n"
+	    "\t[-o variable=value] ... set global variable to an unsigned\n"
+	    "\t    32-bit integer value\n"
 	    "\t[-h] (print help)\n"
 	    "",
 	    zo->zo_pool,
@@ -616,7 +620,7 @@ process_options(int argc, char **argv)
 	bcopy(&ztest_opts_defaults, zo, sizeof (*zo));
 
 	while ((opt = getopt(argc, argv,
-	    "v:s:a:m:r:R:d:t:g:i:k:p:f:VET:P:hF:B:")) != EOF) {
+	    "v:s:a:m:r:R:d:t:g:i:k:p:f:VET:P:hF:B:o:")) != EOF) {
 		value = 0;
 		switch (opt) {
 		case 'v':
@@ -702,6 +706,10 @@ process_options(int argc, char **argv)
 			break;
 		case 'B':
 			(void) strlcpy(altdir, optarg, sizeof (altdir));
+			break;
+		case 'o':
+			if (set_global_var(optarg) != 0)
+				usage(B_FALSE);
 			break;
 		case 'h':
 			usage(B_TRUE);
@@ -1823,26 +1831,30 @@ ztest_get_done(zgd_t *zgd, int error)
 	ztest_object_unlock(zd, object);
 
 	if (error == 0 && zgd->zgd_bp)
-		zil_add_block(zgd->zgd_zilog, zgd->zgd_bp);
+		zil_lwb_add_block(zgd->zgd_lwb, zgd->zgd_bp);
 
 	umem_free(zgd, sizeof (*zgd));
 }
 
 static int
-ztest_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
+ztest_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb,
+    zio_t *zio)
 {
 	ztest_ds_t *zd = arg;
 	objset_t *os = zd->zd_os;
 	uint64_t object = lr->lr_foid;
 	uint64_t offset = lr->lr_offset;
 	uint64_t size = lr->lr_length;
-	blkptr_t *bp = &lr->lr_blkptr;
 	uint64_t txg = lr->lr_common.lrc_txg;
 	uint64_t crtxg;
 	dmu_object_info_t doi;
 	dmu_buf_t *db;
 	zgd_t *zgd;
 	int error;
+
+	ASSERT3P(lwb, !=, NULL);
+	ASSERT3P(zio, !=, NULL);
+	ASSERT3U(size, !=, 0);
 
 	ztest_object_lock(zd, object, RL_READER);
 	error = dmu_bonus_hold(os, object, FTAG, &db);
@@ -1864,7 +1876,7 @@ ztest_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	db = NULL;
 
 	zgd = umem_zalloc(sizeof (*zgd), UMEM_NOFAIL);
-	zgd->zgd_zilog = zd->zd_zilog;
+	zgd->zgd_lwb = lwb;
 	zgd->zgd_private = zd;
 
 	if (buf != NULL) {	/* immediate write */
@@ -1890,11 +1902,7 @@ ztest_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 		    DMU_READ_NO_PREFETCH);
 
 		if (error == 0) {
-			blkptr_t *obp = dmu_buf_get_blkptr(db);
-			if (obp) {
-				ASSERT(BP_IS_HOLE(bp));
-				*bp = *obp;
-			}
+			blkptr_t *bp = &lr->lr_blkptr;
 
 			zgd->zgd_db = db;
 			zgd->zgd_bp = bp;
@@ -5042,7 +5050,7 @@ ztest_ddt_repair(ztest_ds_t *zd, uint64_t id)
 	enum zio_checksum checksum = spa_dedup_checksum(spa);
 	dmu_buf_t *db;
 	dmu_tx_t *tx;
-	void *buf;
+	abd_t *abd;
 	blkptr_t blk;
 	int copies = 2 * ZIO_DEDUPDITTO_MIN;
 
@@ -5122,14 +5130,14 @@ ztest_ddt_repair(ztest_ds_t *zd, uint64_t id)
 	 * Damage the block.  Dedup-ditto will save us when we read it later.
 	 */
 	psize = BP_GET_PSIZE(&blk);
-	buf = zio_buf_alloc(psize);
-	ztest_pattern_set(buf, psize, ~pattern);
+	abd = abd_alloc_linear(psize, B_TRUE);
+	ztest_pattern_set(abd_to_buf(abd), psize, ~pattern);
 
 	(void) zio_wait(zio_rewrite(NULL, spa, 0, &blk,
-	    buf, psize, NULL, NULL, ZIO_PRIORITY_SYNC_WRITE,
+	    abd, psize, NULL, NULL, ZIO_PRIORITY_SYNC_WRITE,
 	    ZIO_FLAG_CANFAIL | ZIO_FLAG_INDUCE_DAMAGE, NULL));
 
-	zio_buf_free(buf, psize);
+	abd_free(abd);
 
 	(void) rw_unlock(&ztest_name_lock);
 }
@@ -5413,6 +5421,12 @@ ztest_resume_thread(void *arg)
 		 */
 		if (ztest_random(10) == 0)
 			zfs_compressed_arc_enabled = ztest_random(2);
+
+		/*
+		 * Periodically change the zfs_abd_scatter_enabled setting.
+		 */
+		if (ztest_random(10) == 0)
+			zfs_abd_scatter_enabled = ztest_random(2);
 	}
 	return (NULL);
 }

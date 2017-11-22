@@ -43,7 +43,7 @@ OBJROOT:= ${OBJROOT:H:tA}/${OBJROOT:T}
 .endif
 
 # from src/Makefile (for universe)
-TARGET_ARCHES_arm?=     arm armeb armv6
+TARGET_ARCHES_arm?=     arm armeb armv6 armv7
 TARGET_ARCHES_arm64?=   aarch64
 TARGET_ARCHES_mips?=    mipsel mips mips64el mips64 mipsn32 mipsn32el
 TARGET_ARCHES_powerpc?= powerpc powerpc64 powerpcspe
@@ -283,6 +283,3 @@ META_MODE+=	missing-meta=yes
 .if empty(META_MODE:Mnofilemon)
 META_MODE+=	missing-filemon=yes
 .endif
-# We do not want everything out-of-date just because
-# some unrelated shared lib updated this.
-.MAKE.META.IGNORE_PATHS+= /usr/local/etc/libmap.d

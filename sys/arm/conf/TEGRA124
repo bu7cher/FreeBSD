@@ -18,15 +18,13 @@
 #
 # $FreeBSD$
 
-include  	"std.armv6"
+include  	"std.armv7"
 include 	"../nvidia/tegra124/std.tegra124"
 
 ident		TEGRA124
 
 options 	SCHED_ULE		# ULE scheduler
 options 	PLATFORM		# Platform based SoC
-options 	PLATFORM_SMP
-options  	MULTIDELAY
 options 	SMP			# Enable multiple cores
 options 	LINUX_BOOT_ABI
 

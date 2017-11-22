@@ -68,6 +68,7 @@
 #define	PS_FST_TYPE_SEM		10
 #define	PS_FST_TYPE_UNKNOWN	11
 #define	PS_FST_TYPE_NONE	12
+#define	PS_FST_TYPE_PROCDESC	13
 
 /*
  * Special descriptor numbers.
@@ -157,6 +158,8 @@ struct sockstat {
 	struct sockaddr_storage	sa_peer;	/* Peer address. */
 	int		type;
 	char		dname[32];
+	unsigned int	sendq;
+	unsigned int	recvq;
 };
 
 STAILQ_HEAD(filestat_list, filestat);

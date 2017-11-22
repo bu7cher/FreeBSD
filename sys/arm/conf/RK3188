@@ -20,7 +20,7 @@
 
 ident		RK3188
 
-include 	"std.armv6"
+include 	"std.armv7"
 include 	"../rockchip/std.rk30xx"
 
 options 	SOC_ROCKCHIP_RK3188
@@ -28,8 +28,6 @@ options 	SOC_ROCKCHIP_RK3188
 options 	SCHED_ULE		# ULE scheduler
 options 	SMP			# Enable multiple cores
 options 	PLATFORM
-options 	PLATFORM_SMP
-options 	MULTIDELAY
 
 # Root mount from MMC/SD card
 options 	ROOTDEVNAME=\"ufs:/dev/mmcsd0\"

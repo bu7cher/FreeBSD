@@ -100,6 +100,7 @@ CLEANFILES+=	loader.help
 CFLAGS+=	-ffreestanding -msoft-float
 
 LDFLAGS=	-nostdlib -static -T ${.CURDIR}/ldscript.${MACHINE_CPUARCH}
+LDFLAGS+=	-Wl,-znotext
 
 # Pull in common loader code
 .PATH:		${.CURDIR}/../../uboot/common
@@ -111,16 +112,13 @@ LIBUBOOT=	${.OBJDIR}/../../uboot/lib/libuboot.a
 CFLAGS+=	-I${.CURDIR}/../../uboot/lib
 CFLAGS+=	-I${.OBJDIR}/../../uboot/lib
 
-# where to get libstand from
-CFLAGS+=	-I${.CURDIR}/../../../../lib/libstand/
-
 CFLAGS+=	-fPIC
 
 # clang doesn't understand %D as a specifier to printf
 NO_WERROR.clang=
 
-DPADD=		${LIBFICL} ${LIBUBOOT} ${LIBFDT} ${LIBUBOOT_FDT} ${LIBSTAND}
-LDADD=		${LIBFICL} ${LIBUBOOT} ${LIBFDT} ${LIBUBOOT_FDT} -lstand
+DPADD=		${LIBFICL} ${LIBUBOOT} ${LIBFDT} ${LIBUBOOT_FDT} ${LIBSA}
+LDADD=		${LIBFICL} ${LIBUBOOT} ${LIBFDT} ${LIBUBOOT_FDT} ${LIBSA}
 
 OBJS+=  ${SRCS:N*.h:R:S/$/.o/g}
 

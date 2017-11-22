@@ -188,7 +188,17 @@ mb_dupcl(struct mbuf *n, struct mbuf *m)
 	KASSERT(m->m_flags & M_EXT, ("%s: M_EXT not set on %p", __func__, m));
 	KASSERT(!(n->m_flags & M_EXT), ("%s: M_EXT set on %p", __func__, n));
 
-	n->m_ext = m->m_ext;
+	/*
+	 * Cache access optimization.  For most kinds of external
+	 * storage we don't need full copy of m_ext, since the
+	 * holder of the 'ext_count' is responsible to carry the
+	 * free routine and its arguments.  Exclusion is EXT_EXTREF,
+	 * where 'ext_cnt' doesn't point into mbuf at all.
+	 */
+	if (m->m_ext.ext_type == EXT_EXTREF)
+		bcopy(&m->m_ext, &n->m_ext, sizeof(struct m_ext));
+	else
+		bcopy(&m->m_ext, &n->m_ext, m_ext_copylen);
 	n->m_flags |= M_EXT;
 	n->m_flags |= m->m_flags & M_RDONLY;
 
@@ -1517,7 +1527,7 @@ m_uiotombuf(struct uio *uio, int how, int len, int align, int flags)
 	 * the total data supplied by the uio.
 	 */
 	if (len > 0)
-		total = min(uio->uio_resid, len);
+		total = (uio->uio_resid < len) ? uio->uio_resid : len;
 	else
 		total = uio->uio_resid;
 

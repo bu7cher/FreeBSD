@@ -66,7 +66,7 @@ void __libc_free_tls(void *tls, size_t tcbsize, size_t tcbalign);
 #if defined(__amd64__)
 #define TLS_TCB_ALIGN 16
 #elif defined(__aarch64__) || defined(__arm__) || defined(__i386__) || \
-    defined(__mips__) || defined(__powerpc__) || defined(__riscv__) || \
+    defined(__mips__) || defined(__powerpc__) || defined(__riscv) || \
     defined(__sparc64__)
 #define TLS_TCB_ALIGN sizeof(void *)
 #else
@@ -74,7 +74,7 @@ void __libc_free_tls(void *tls, size_t tcbsize, size_t tcbalign);
 #endif
 
 #if defined(__aarch64__) || defined(__arm__) || defined(__mips__) || \
-    defined(__powerpc__) || defined(__riscv__)
+    defined(__powerpc__) || defined(__riscv)
 #define TLS_VARIANT_I
 #endif
 #if defined(__i386__) || defined(__amd64__) || defined(__sparc64__)
@@ -160,9 +160,6 @@ __libc_allocate_tls(void *oldtcb, size_t tcbsize, size_t tcbalign __unused)
 
 		if (tls_init_size > 0)
 			memcpy((void*)dtv[2], tls_init, tls_init_size);
-		if (tls_static_space > tls_init_size)
-			memset((void*)(dtv[2] + tls_init_size), 0,
-			    tls_static_space - tls_init_size);
 	}
 
 	return(tcb); 
