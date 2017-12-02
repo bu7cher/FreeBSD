@@ -46,6 +46,13 @@ counter_u64_read_one(uint64_t *p, int cpu)
 	return (*(uint64_t *)((char *)p + sizeof(struct pcpu) * cpu));
 }
 
+static inline void
+counter_u64_write_one(counter_u64_t p, uint64_t val, int cpu)
+{
+
+	*(uint64_t *)((char *)p + sizeof(struct pcpu) * cpu) = val;
+}
+
 static inline uint64_t
 counter_u64_fetch_inline(uint64_t *p)
 {
@@ -86,6 +93,18 @@ counter_u64_add(counter_u64_t c, int64_t inc)
 	    :
 	    : "r" ((char *)c - (char *)&__pcpu[0]), "ri" (inc)
 	    : "memory", "cc");
+}
+
+static inline uint64_t
+counter_u64_fetchadd(counter_u64_t c, int64_t inc)
+{
+
+	__asm __volatile("xaddq\t%0,%%gs:(%1)"
+	    : "+r" (inc)
+	    : "r" ((char *)c - (char *)&__pcpu[0])
+	    : "memory", "cc");
+
+	return (inc);
 }
 
 #endif	/* ! __MACHINE_COUNTER_H__ */
