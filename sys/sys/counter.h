@@ -91,7 +91,7 @@ static inline uint64_t
 counter_fo_fetch(struct counter_fo *c)
 {
 
-	return (c->cf_pool > 0 ? c->cf_pool : 0);
+	return (c->cf_pool);
 }
 
 int	counter_fo_init(struct counter_fo *, uint64_t, uint64_t, int);
