@@ -390,22 +390,21 @@ vm_page_domain_init(void)
 {
 	struct vm_domain *vmd;
 	struct vm_pagequeue *pq;
-	uint64_t free_count;
 
 	for (int d = 0; d < vm_ndomains; d++) {
 		vmd = &vm_dom[d];
 		vmd->vmd_pagequeues[PQ_INACTIVE].pq_name =
 		    "vm inactive pagequeue";
 		vmd->vmd_pagequeues[PQ_INACTIVE].pq_vcnt =
-		    vm_cnt.v_inactive_count;
+		    &vm_cnt.v_inactive_count;
 		vmd->vmd_pagequeues[PQ_ACTIVE].pq_name =
 		    "vm active pagequeue";
 		vmd->vmd_pagequeues[PQ_ACTIVE].pq_vcnt =
-		    vm_cnt.v_active_count;
+		    &vm_cnt.v_active_count;
 		vmd->vmd_pagequeues[PQ_LAUNDRY].pq_name =
 		    "vm laundry pagequeue";
 		vmd->vmd_pagequeues[PQ_LAUNDRY].pq_vcnt =
-		    vm_cnt.v_laundry_count;
+		    &vm_cnt.v_laundry_count;
 		vmd->vmd_pagequeues[PQ_UNSWAPPABLE].pq_name =
 		    "vm unswappable pagequeue";
 		/*
@@ -413,10 +412,7 @@ vm_page_domain_init(void)
 		 * in the laundry.
 		 */
 		vmd->vmd_pagequeues[PQ_UNSWAPPABLE].pq_vcnt =
-		    vm_cnt.v_laundry_count;
-		free_count = vmd->vmd_free_count_early;
-		vmd->vmd_free_count = counter_u64_alloc(M_WAITOK);
-		counter_u64_add(vmd->vmd_free_count, free_count);
+		    &vm_cnt.v_laundry_count;
 		vmd->vmd_oom = FALSE;
 		for (int q = 0; q < PQ_COUNT; q++) {
 			pq = &vmd->vmd_pagequeues[q];
@@ -669,7 +665,7 @@ vm_page_startup(vm_offset_t vaddr)
 	 * physical memory allocator's free lists.
 	 */
 	vm_cnt.v_page_count = 0;
-	vm_cnt.v_free_count_early = 0;
+	vm_cnt.v_free_count.cf_pool = 0;
 	for (segind = 0; segind < vm_phys_nsegs; segind++) {
 		seg = &vm_phys_segs[segind];
 		for (pa = seg->start; pa < seg->end; pa += PAGE_SIZE)
@@ -692,8 +688,7 @@ vm_page_startup(vm_offset_t vaddr)
 
 			mtx_lock(&vm_page_queue_free_mtx);
 			vm_phys_free_contig(m, pagecount);
-			vm_phys_domain(m)->vmd_free_count_early += pagecount;
-			vm_cnt.v_free_count_early += pagecount;
+			vm_cnt.v_free_count.cf_pool += pagecount;
 			mtx_unlock(&vm_page_queue_free_mtx);
 			vm_cnt.v_page_count += (u_int)pagecount;
 
@@ -1691,7 +1686,7 @@ vm_page_alloc_after(vm_object_t object, vm_pindex_t pindex, int req,
 		 * The page lock is not required for wiring a page until that
 		 * page is inserted into the object.
 		 */
-		counter_u64_add(vm_cnt.v_wire_count, 1);
+		counter_fo_add(&vm_cnt.v_wire_count, 1);
 		m->wire_count = 1;
 	}
 	m->act_count = 0;
@@ -1700,7 +1695,7 @@ vm_page_alloc_after(vm_object_t object, vm_pindex_t pindex, int req,
 		if (vm_page_insert_after(m, object, pindex, mpred)) {
 			pagedaemon_wakeup();
 			if (req & VM_ALLOC_WIRED) {
-				counter_u64_add(vm_cnt.v_wire_count, -1);
+				counter_fo_add(&vm_cnt.v_wire_count, -1);
 				m->wire_count = 0;
 			}
 			KASSERT(m->object == NULL, ("page %p has object", m));
@@ -1869,7 +1864,7 @@ retry:
 	if ((req & VM_ALLOC_SBUSY) != 0)
 		busy_lock = VPB_SHARERS_WORD(1);
 	if ((req & VM_ALLOC_WIRED) != 0)
-		counter_u64_add(vm_cnt.v_wire_count, npages);
+		counter_fo_add(&vm_cnt.v_wire_count, npages);
 	if (object != NULL) {
 		if (object->memattr != VM_MEMATTR_DEFAULT &&
 		    memattr == VM_MEMATTR_DEFAULT)
@@ -1887,7 +1882,7 @@ retry:
 			if (vm_page_insert_after(m, object, pindex, mpred)) {
 				pagedaemon_wakeup();
 				if ((req & VM_ALLOC_WIRED) != 0)
-					counter_u64_add(vm_cnt.v_wire_count,
+					counter_fo_add(&vm_cnt.v_wire_count,
 					    -npages);
 				KASSERT(m->object == NULL,
 				    ("page %p has object", m));
@@ -2010,7 +2005,7 @@ vm_page_alloc_freelist(int flind, int req)
 		 * The page lock is not required for wiring a page that does
 		 * not belong to an object.
 		 */
-		counter_u64_add(vm_cnt.v_wire_count, 1);
+		counter_fo_add(&vm_cnt.v_wire_count, 1);
 		m->wire_count = 1;
 	}
 	/* Unmanaged pages don't use "act_count". */
@@ -2929,7 +2924,7 @@ vm_page_wire(vm_page_t m)
 		    m->queue == PQ_NONE,
 		    ("vm_page_wire: unmanaged page %p is queued", m));
 		vm_page_remque(m);
-		counter_u64_add(vm_cnt.v_wire_count, 1);
+		counter_fo_add(&vm_cnt.v_wire_count, 1);
 	}
 	m->wire_count++;
 	KASSERT(m->wire_count != 0, ("vm_page_wire: wire_count overflow m=%p", m));
@@ -2968,7 +2963,7 @@ vm_page_unwire(vm_page_t m, uint8_t queue)
 	if (m->wire_count > 0) {
 		m->wire_count--;
 		if (m->wire_count == 0) {
-			counter_u64_add(vm_cnt.v_wire_count, -1);
+			counter_fo_add(&vm_cnt.v_wire_count, -1);
 			if ((m->oflags & VPO_UNMANAGED) == 0 &&
 			    m->object != NULL && queue != PQ_NONE)
 				vm_page_enqueue(queue, m);
@@ -3809,11 +3804,10 @@ DB_SHOW_COMMAND(pageq, vm_page_print_pageq_info)
 
 	db_printf("pq_free %d\n", v_free_count());
 	for (dom = 0; dom < vm_ndomains; dom++) {
-		db_printf("dom %d page_cnt %d free %ju pq_act %d "
+		db_printf("dom %d page_cnt %d pq_act %d "
 		    "pq_inact %d pq_laund %d pq_unsw %d\n",
 		    dom,
 		    vm_dom[dom].vmd_page_count,
-		    (uintmax_t)counter_u64_fetch(vm_dom[dom].vmd_free_count),
 		    vm_dom[dom].vmd_pagequeues[PQ_ACTIVE].pq_cnt,
 		    vm_dom[dom].vmd_pagequeues[PQ_INACTIVE].pq_cnt,
 		    vm_dom[dom].vmd_pagequeues[PQ_LAUNDRY].pq_cnt,

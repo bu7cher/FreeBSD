@@ -121,19 +121,16 @@ struct vmmeter {
 	counter_u64_t v_vforkpages;	/* (p) pages affected by vfork() */
 	counter_u64_t v_rforkpages;	/* (p) pages affected by rfork() */
 	counter_u64_t v_kthreadpages;	/* (p) ... and by kernel fork() */
+#define	VM_METER_NCOUNTERS	\
+	(offsetof(struct vmmeter, v_active_count) / sizeof(counter_u64_t))
 	/*
 	 * Distribution of page usages.
 	 */
-	counter_u64_t v_active_count;	/* (q) pages active */
-	union {
-		counter_u64_t	v_free_count;	/* (f) pages free */
-		uintptr_t	v_free_count_early;
-	};
-	counter_u64_t v_inactive_count;	/* (q) pages inactive */
-	counter_u64_t v_laundry_count;	/* (q) pages eligible for laundering */
-	counter_u64_t v_wire_count;	/* (a) pages wired down */
-#define	VM_METER_NCOUNTERS	\
-	(offsetof(struct vmmeter, v_page_size) / sizeof(counter_u64_t))
+	struct counter_fo v_active_count;
+	struct counter_fo v_free_count;
+	struct counter_fo v_inactive_count;
+	struct counter_fo v_laundry_count;
+	struct counter_fo v_wire_count;
 	u_int v_page_size;	/* (c) page size in bytes */
 	u_int v_page_count;	/* (c) total number of pages in system */
 	u_int v_free_reserved;	/* (c) pages reserved for deadlock */
@@ -143,7 +140,6 @@ struct vmmeter {
 	u_int v_pageout_free_min;   /* (c) min pages reserved for kernel */
 	u_int v_interrupt_free_min; /* (c) reserved pages for int code */
 	u_int v_free_severe;	/* (c) severe page depletion point */
-	int v_meter_initialized;	/* debugging only */
 };
 #endif /* _KERNEL || _WANT_VMMETER */
 
@@ -156,54 +152,39 @@ extern u_int vm_pageout_wakeup_thresh;
 #define	VM_CNT_INC(var)		VM_CNT_ADD(var, 1)
 #define	VM_CNT_FETCH(var)	counter_u64_fetch(vm_cnt.var)
 
-/*
- * Fetching counter(9)s that may fluctuate around 0.  Since counter_u64_fetch()
- * gives a snapshot, it is possible that we return a value close to UINT64_MAX,
- * instead of 0.
- */
-
-static inline uint64_t
-vm_cnt_fetch(counter_u64_t cnt)
-{
-	uint64_t rv;
-
-	rv = counter_u64_fetch(cnt);
-	return (rv < INT64_MAX ? rv : 0);
-}
-
 static inline int
 v_active_count(void)
 {
 
-	return (vm_cnt_fetch(vm_cnt.v_active_count));
+	return (counter_fo_fetch(&vm_cnt.v_active_count));
 }
 
 static inline int
 v_free_count(void)
 {
 
-	return (vm_cnt_fetch(vm_cnt.v_free_count));
+	return (counter_fo_fetch(&vm_cnt.v_free_count));
 }
 
 static inline int
 v_inactive_count(void)
 {
 
-	return (vm_cnt_fetch(vm_cnt.v_inactive_count));
+	return (counter_fo_fetch(&vm_cnt.v_inactive_count));
 }
 
 static inline int
 v_laundry_count(void)
 {
 
-	return (vm_cnt_fetch(vm_cnt.v_laundry_count));
+	return (counter_fo_fetch(&vm_cnt.v_laundry_count));
 }
 
 static inline int
 v_wire_count(void)
 {
 
-	return (vm_cnt_fetch(vm_cnt.v_wire_count));
+	return (counter_fo_fetch(&vm_cnt.v_wire_count));
 }
 
 /*

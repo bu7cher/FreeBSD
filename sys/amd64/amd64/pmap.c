@@ -2221,7 +2221,7 @@ pmap_free_zero_pages(struct spglist *free)
 		/* Preserve the page's PG_ZERO setting. */
 		vm_page_free_toq(m);
 	}
-	counter_u64_add(vm_cnt.v_wire_count, -count);
+	counter_fo_add(&vm_cnt.v_wire_count, -count);
 }
 
 /*
@@ -2528,7 +2528,7 @@ _pmap_allocpte(pmap_t pmap, vm_pindex_t ptepindex, struct rwlock **lockp)
 			if (_pmap_allocpte(pmap, NUPDE + NUPDPE + pml4index,
 			    lockp) == NULL) {
 				--m->wire_count;
-				counter_u64_add(vm_cnt.v_wire_count, -1);
+				counter_fo_add(&vm_cnt.v_wire_count, -1);
 				vm_page_free_zero(m);
 				return (NULL);
 			}
@@ -2561,7 +2561,7 @@ _pmap_allocpte(pmap_t pmap, vm_pindex_t ptepindex, struct rwlock **lockp)
 			if (_pmap_allocpte(pmap, NUPDE + pdpindex,
 			    lockp) == NULL) {
 				--m->wire_count;
-				counter_u64_add(vm_cnt.v_wire_count, -1);
+				counter_fo_add(&vm_cnt.v_wire_count, -1);
 				vm_page_free_zero(m);
 				return (NULL);
 			}
@@ -2575,7 +2575,7 @@ _pmap_allocpte(pmap_t pmap, vm_pindex_t ptepindex, struct rwlock **lockp)
 				if (_pmap_allocpte(pmap, NUPDE + pdpindex,
 				    lockp) == NULL) {
 					--m->wire_count;
-					counter_u64_add(vm_cnt.v_wire_count,
+					counter_fo_add(&vm_cnt.v_wire_count,
 					    -1);
 					vm_page_free_zero(m);
 					return (NULL);
@@ -2709,7 +2709,7 @@ pmap_release(pmap_t pmap)
 	pmap->pm_pml4[PML4PML4I] = 0;	/* Recursive Mapping */
 
 	m->wire_count--;
-	counter_u64_add(vm_cnt.v_wire_count, -1);
+	counter_fo_add(&vm_cnt.v_wire_count, -1);
 	vm_page_free_zero(m);
 }
 

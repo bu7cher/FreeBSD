@@ -96,24 +96,26 @@ struct vmmeter __exclusive_cache_line vm_cnt = {
 	.v_vforkpages = EARLY_COUNTER,
 	.v_rforkpages = EARLY_COUNTER,
 	.v_kthreadpages = EARLY_COUNTER,
-	.v_active_count = EARLY_COUNTER,
-	.v_inactive_count = EARLY_COUNTER,
-	.v_laundry_count = EARLY_COUNTER,
-	.v_wire_count = EARLY_COUNTER,
 };
 
 void
 vm_meter_startup(void)
 {
 	counter_u64_t *cnt = (counter_u64_t *)&vm_cnt;
-	uint64_t free_count;
 
 	pcpu_zones_startup();
 
-	free_count = vm_cnt.v_free_count_early;
 	COUNTER_ARRAY_ALLOC(cnt, VM_METER_NCOUNTERS, M_WAITOK);
-	counter_u64_add(vm_cnt.v_free_count, free_count);
-	vm_cnt.v_meter_initialized = 1;
+	counter_fo_init(&vm_cnt.v_active_count, 0, 1000, M_WAITOK);
+	counter_fo_init(&vm_cnt.v_inactive_count, 0, 1000, M_WAITOK);
+	counter_fo_init(&vm_cnt.v_laundry_count, 0, 100, M_WAITOK);
+	counter_fo_init(&vm_cnt.v_wire_count, 0, 1000, M_WAITOK);
+	/*
+	 * vm_page_startup() has accumulated in v_free_count.cf_pool,
+	 * assign the value to itself.  XXXGL: wouldn't union be better?
+	 */
+	counter_fo_init(&vm_cnt.v_free_count, vm_cnt.v_free_count.cf_pool,
+	    1000, M_WAITOK);
 }
 
 SYSCTL_UINT(_vm, VM_V_FREE_MIN, v_free_min,
