@@ -198,15 +198,14 @@ counter_fo_init(struct counter_fo *c, uint64_t limit, uint64_t precision,
 	mtx_init(&c->cf_mtx, "counter_fo", NULL, MTX_DEF | MTX_NEW);
 	c->cf_budget = precision / mp_ncpus;
 	c->cf_flags = 0;
-	if (limit > 0) {
-		c->cf_pool = limit - (precision / 2);
-		CPU_FOREACH(i)
+	if ((c->cf_pool = limit) > 0) {
+		CPU_FOREACH(i) {
+			c->cf_pool -= c->cf_budget / 2;
 			counter_u64_write_one(c->cf_counter,
 			    c->cf_budget / 2, i);
-	} else {
-		c->cf_pool = 0;
+		}
+	} else
 		counter_u64_zero(c->cf_counter);
-	}
 
 	return (0);
 }
