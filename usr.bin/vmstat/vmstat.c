@@ -54,6 +54,10 @@ __FBSDID("$FreeBSD$");
 #include <sys/sysctl.h>
 #include <sys/time.h>
 #include <sys/user.h>
+#include <stdbool.h>
+#define	_KERNEL
+#include <sys/counter.h>
+#undef _KERNEL
 #define	_WANT_VMMETER
 #include <sys/vmmeter.h>
 #include <sys/pcpu.h>
