@@ -216,8 +216,8 @@ vm_pager_bufferinit(void)
 	vnode_pager_zone = uma_zcreate("pbuf", sizeof(struct buf),
 	    pbuf_ctor, pbuf_dtor, pbuf_init, NULL, UMA_ALIGN_CACHE,
 	    UMA_ZONE_VM | UMA_ZONE_NOFREE);
-	uma_prealloc(vnode_pager_zone, nswbuf * 2);
-	uma_zone_set_max(vnode_pager_zone, nswbuf * 40);
+	uma_prealloc(vnode_pager_zone, nswbuf * 8);
+	uma_zone_set_max(vnode_pager_zone, nswbuf * 8);
 }
 
 /*
