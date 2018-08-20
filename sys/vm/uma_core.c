@@ -263,7 +263,7 @@ static uma_bucket_t zone_alloc_bucket(uma_zone_t, void *, int, int);
 static uma_slab_t zone_fetch_slab(uma_zone_t, uma_keg_t, int, int);
 static uma_slab_t zone_fetch_slab_multi(uma_zone_t, uma_keg_t, int, int);
 static void *slab_alloc_item(uma_keg_t keg, uma_slab_t slab);
-static void slab_free_item(uma_keg_t keg, uma_slab_t slab, void *item);
+static void slab_free_item(uma_keg_t keg, uma_zone_t zone, uma_slab_t slab, void *item);
 static uma_keg_t uma_kcreate(uma_zone_t zone, size_t size, uma_init uminit,
     uma_fini fini, int align, uint32_t flags);
 static int zone_import(uma_zone_t, void **, int, int, int);
@@ -1012,6 +1012,7 @@ keg_alloc_slab(uma_keg_t keg, uma_zone_t zone, int domain, int wait)
 	KASSERT(domain >= 0 && domain < vm_ndomains,
 	    ("keg_alloc_slab: domain %d out of range", domain));
 	mtx_assert(&keg->uk_lock, MA_OWNED);
+	MPASS(zone->uz_lockptr == &keg->uk_lock);
 	slab = NULL;
 	mem = NULL;
 
@@ -1091,6 +1092,7 @@ out:
 
 		keg->uk_pages += keg->uk_ppera;
 		keg->uk_free += keg->uk_ipers;
+		zone->uz_pages += keg->uk_ppera;
 	}
 
 	return (slab);
@@ -2600,7 +2602,7 @@ uma_zalloc_domain(uma_zone_t zone, void *udata, int domain, int flags)
  * only 'domain'.
  */
 static uma_slab_t
-keg_first_slab(uma_keg_t keg, int domain, int rr)
+keg_first_slab(uma_keg_t keg, uma_zone_t zone, int domain, int rr)
 {
 	uma_domain_t dom;
 	uma_slab_t slab;
@@ -2608,6 +2610,8 @@ keg_first_slab(uma_keg_t keg, int domain, int rr)
 
 	KASSERT(domain >= 0 && domain < vm_ndomains,
 	    ("keg_first_slab: domain %d out of range", domain));
+	mtx_assert(&keg->uk_lock, MA_OWNED);
+	MPASS(zone->uz_lockptr == &keg->uk_lock);
 
 	slab = NULL;
 	start = domain;
@@ -2619,6 +2623,7 @@ keg_first_slab(uma_keg_t keg, int domain, int rr)
 			slab = LIST_FIRST(&dom->ud_free_slab);
 			LIST_REMOVE(slab, us_link);
 			LIST_INSERT_HEAD(&dom->ud_part_slab, slab, us_link);
+			zone->uz_pages += keg->uk_ppera;
 			return (slab);
 		}
 		if (rr)
@@ -2665,7 +2670,7 @@ keg_fetch_slab(uma_keg_t keg, uma_zone_t zone, int rdomain, int flags)
 again:
 	do {
 		if (keg->uk_free > reserve &&
-		    (slab = keg_first_slab(keg, domain, rr)) != NULL) {
+		    (slab = keg_first_slab(keg, zone, domain, rr)) != NULL) {
 			MPASS(slab->us_keg == keg);
 			return (slab);
 		}
@@ -2676,21 +2681,17 @@ again:
 		if (flags & M_NOVM)
 			break;
 
-		if (keg->uk_maxpages && keg->uk_pages >= keg->uk_maxpages) {
-			keg->uk_flags |= UMA_ZFLAG_FULL;
+		if (zone->uz_maxpages && zone->uz_pages >= zone->uz_maxpages) {
 			/*
-			 * If this is not a multi-zone, set the FULL bit.
-			 * Otherwise slab_multi() takes care of it.
+			 * XXXGL: likely multi-keg zones are broken here.
 			 */
-			if ((zone->uz_flags & UMA_ZFLAG_MULTI) == 0) {
-				zone->uz_flags |= UMA_ZFLAG_FULL;
-				zone_log_warning(zone);
-				zone_maxaction(zone);
-			}
+			zone->uz_flags |= UMA_ZFLAG_FULL;
+			zone_log_warning(zone);
+			zone_maxaction(zone);
 			if (flags & M_NOWAIT)
 				return (NULL);
 			zone->uz_sleeps++;
-			msleep(keg, &keg->uk_lock, PVM, "keglimit", 0);
+			msleep(zone, &keg->uk_lock, PVM, "zonelimit", 0);
 			continue;
 		}
 		slab = keg_alloc_slab(keg, zone, domain, allocflags);
@@ -2724,7 +2725,7 @@ again:
 	 * fail.
 	 */
 	if (keg->uk_free > reserve &&
-	    (slab = keg_first_slab(keg, domain, rr)) != NULL) {
+	    (slab = keg_first_slab(keg, zone, domain, rr)) != NULL) {
 		MPASS(slab->us_keg == keg);
 		return (slab);
 	}
@@ -3240,13 +3241,14 @@ uma_zfree_domain(uma_zone_t zone, void *item, void *udata)
 }
 
 static void
-slab_free_item(uma_keg_t keg, uma_slab_t slab, void *item)
+slab_free_item(uma_keg_t keg, uma_zone_t zone, uma_slab_t slab, void *item)
 {
 	uma_domain_t dom;
 	uint8_t freei;
 
 	mtx_assert(&keg->uk_lock, MA_OWNED);
 	MPASS(keg == slab->us_keg);
+	MPASS(zone->uz_lockptr == &keg->uk_lock);
 
 	dom = &keg->uk_domain[slab->us_domain];
 
@@ -3254,6 +3256,7 @@ slab_free_item(uma_keg_t keg, uma_slab_t slab, void *item)
 	if (slab->us_freecount+1 == keg->uk_ipers) {
 		LIST_REMOVE(slab, us_link);
 		LIST_INSERT_HEAD(&dom->ud_free_slab, slab, us_link);
+		zone->uz_pages -= keg->uk_ppera;
 	} else if (slab->us_freecount == 0) {
 		LIST_REMOVE(slab, us_link);
 		LIST_INSERT_HEAD(&dom->ud_part_slab, slab, us_link);
@@ -3275,10 +3278,8 @@ zone_release(uma_zone_t zone, void **bucket, int cnt)
 	uma_slab_t slab;
 	uma_keg_t keg;
 	uint8_t *mem;
-	int clearfull;
 	int i;
 
-	clearfull = 0;
 	keg = zone_first_keg(zone);
 	KEG_LOCK(keg);
 	for (i = 0; i < cnt; i++) {
@@ -3299,13 +3300,10 @@ zone_release(uma_zone_t zone, void **bucket, int cnt)
 				KEG_LOCK(keg);
 			}
 		}
-		slab_free_item(keg, slab, item);
-		if (keg->uk_flags & UMA_ZFLAG_FULL) {
-			if (keg->uk_pages < keg->uk_maxpages) {
-				keg->uk_flags &= ~UMA_ZFLAG_FULL;
-				clearfull = 1;
-			}
-
+		slab_free_item(keg, zone, slab, item);
+		if ((zone->uz_flags & UMA_ZFLAG_FULL) &&
+		    (zone->uz_pages < zone->uz_maxpages)) {
+			zone->uz_flags &= ~UMA_ZFLAG_FULL;
 			/* 
 			 * We can handle one more allocation. Since we're
 			 * clearing ZFLAG_FULL, wake up all procs blocked
@@ -3313,17 +3311,10 @@ zone_release(uma_zone_t zone, void **bucket, int cnt)
 			 * simple for now (rather than adding count of blocked 
 			 * threads etc).
 			 */
-			wakeup(keg);
+			wakeup(zone);
 		}
 	}
 	KEG_UNLOCK(keg);
-	if (clearfull) {
-		ZONE_LOCK(zone);
-		zone->uz_flags &= ~UMA_ZFLAG_FULL;
-		wakeup(zone);
-		ZONE_UNLOCK(zone);
-	}
-
 }
 
 /*
@@ -3371,13 +3362,12 @@ uma_zone_set_max(uma_zone_t zone, int nitems)
 	uma_keg_t keg;
 
 	keg = zone_first_keg(zone);
-	if (keg == NULL)
-		return (0);
+	MPASS(keg != NULL);
 	KEG_LOCK(keg);
-	keg->uk_maxpages = (nitems / keg->uk_ipers) * keg->uk_ppera;
-	if (keg->uk_maxpages * keg->uk_ipers < nitems)
-		keg->uk_maxpages += keg->uk_ppera;
-	nitems = (keg->uk_maxpages / keg->uk_ppera) * keg->uk_ipers;
+	zone->uz_maxpages = (nitems / keg->uk_ipers) * keg->uk_ppera;
+	if (zone->uz_maxpages * keg->uk_ipers < nitems)
+		zone->uz_maxpages += keg->uk_ppera;
+	nitems = (zone->uz_maxpages / keg->uk_ppera) * keg->uk_ipers;
 	KEG_UNLOCK(keg);
 
 	return (nitems);
@@ -3391,10 +3381,9 @@ uma_zone_get_max(uma_zone_t zone)
 	uma_keg_t keg;
 
 	keg = zone_first_keg(zone);
-	if (keg == NULL)
-		return (0);
+	MPASS(keg != NULL);
 	KEG_LOCK(keg);
-	nitems = (keg->uk_maxpages / keg->uk_ppera) * keg->uk_ipers;
+	nitems = (zone->uz_maxpages / keg->uk_ppera) * keg->uk_ipers;
 	KEG_UNLOCK(keg);
 
 	return (nitems);
@@ -3549,10 +3538,9 @@ uma_zone_reserve_kva(uma_zone_t zone, int count)
 	u_int pages;
 
 	keg = zone_first_keg(zone);
-	if (keg == NULL)
-		return (0);
-	pages = count / keg->uk_ipers;
+	MPASS(keg != NULL);
 
+	pages = count / keg->uk_ipers;
 	if (pages * keg->uk_ipers < count)
 		pages++;
 	pages *= keg->uk_ppera;
@@ -3570,7 +3558,7 @@ uma_zone_reserve_kva(uma_zone_t zone, int count)
 	KEG_LOCK(keg);
 	keg->uk_kva = kva;
 	keg->uk_offset = 0;
-	keg->uk_maxpages = pages;
+	zone->uz_maxpages = pages;
 #ifdef UMA_MD_SMALL_ALLOC
 	keg->uk_allocf = (keg->uk_ppera > 1) ? noobj_alloc : uma_small_alloc;
 #else
@@ -3810,11 +3798,11 @@ uma_print_keg(uma_keg_t keg)
 	int i;
 
 	printf("keg: %s(%p) size %d(%d) flags %#x ipers %d ppera %d "
-	    "out %d free %d limit %d\n",
+	    "out %d free %d\n",
 	    keg->uk_name, keg, keg->uk_size, keg->uk_rsize, keg->uk_flags,
 	    keg->uk_ipers, keg->uk_ppera,
 	    (keg->uk_pages / keg->uk_ppera) * keg->uk_ipers - keg->uk_free,
-	    keg->uk_free, (keg->uk_maxpages / keg->uk_ppera) * keg->uk_ipers);
+	    keg->uk_free);
 	for (i = 0; i < vm_ndomains; i++) {
 		dom = &keg->uk_domain[i];
 		printf("Part slabs:\n");
@@ -3836,8 +3824,9 @@ uma_print_zone(uma_zone_t zone)
 	uma_klink_t kl;
 	int i;
 
-	printf("zone: %s(%p) size %d flags %#x\n",
-	    zone->uz_name, zone, zone->uz_size, zone->uz_flags);
+	printf("zone: %s(%p) size %d maxpages %d flags %#x\n",
+	    zone->uz_name, zone, zone->uz_size, zone->uz_maxpages,
+	    zone->uz_flags);
 	LIST_FOREACH(kl, &zone->uz_kegs, kl_link)
 		uma_print_keg(kl->kl_keg);
 	CPU_FOREACH(i) {
@@ -3956,13 +3945,13 @@ sysctl_vm_zone_stats(SYSCTL_HANDLER_ARGS)
 			uth.uth_align = kz->uk_align;
 			uth.uth_size = kz->uk_size;
 			uth.uth_rsize = kz->uk_rsize;
+			uth.uth_pages += z->uz_pages;
+			uth.uth_maxpages += z->uz_maxpages;
+			uth.uth_limit = (z->uz_maxpages / k->uk_ppera)
+			    * k->uk_ipers;
 			LIST_FOREACH(kl, &z->uz_kegs, kl_link) {
 				k = kl->kl_keg;
-				uth.uth_maxpages += k->uk_maxpages;
-				uth.uth_pages += k->uk_pages;
 				uth.uth_keg_free += k->uk_free;
-				uth.uth_limit = (k->uk_maxpages / k->uk_ppera)
-				    * k->uk_ipers;
 			}
 
 			/*

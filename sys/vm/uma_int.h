@@ -233,7 +233,7 @@ struct uma_keg {
 	uint32_t	uk_reserve;	/* Number of reserved items. */
 	uint32_t	uk_size;	/* Requested size of each item */
 	uint32_t	uk_rsize;	/* Real size of each item */
-	uint32_t	uk_maxpages;	/* Maximum number of pages to alloc */
+	/* 32 bit pad */
 
 	uma_init	uk_init;	/* Keg's init routine */
 	uma_fini	uk_fini;	/* Keg's fini routine */
@@ -316,7 +316,6 @@ typedef struct uma_zone_domain * uma_zone_domain_t;
 struct uma_zone {
 	/* Offset 0, used in alloc/free fast/medium fast path and const. */
 	struct mtx	*uz_lockptr;
-	const char	*uz_name;	/* Text name of the zone */
 	struct uma_zone_domain	*uz_domain;	/* per-domain buckets */
 	uint32_t	uz_flags;	/* Flags inherited from kegs */
 	uint32_t	uz_size;	/* Size inherited from kegs */
@@ -325,11 +324,13 @@ struct uma_zone {
 	uma_init	uz_init;	/* Initializer for each item */
 	uma_fini	uz_fini;	/* Finalizer for each item. */
 
-	/* Offset 64, used in bucket replenish. */
+	/* XXXGL Offset 64, used in bucket replenish. */
 	uma_import	uz_import;	/* Import new memory to cache. */
 	uma_release	uz_release;	/* Release memory from cache. */
 	void		*uz_arg;	/* Import/release argument. */
 	uma_slaballoc	uz_slab;	/* Allocate a slab from the backend. */
+	uint32_t	uz_pages;	/* Total page count */
+	uint32_t	uz_maxpages;	/* Maximum number of pages to alloc */
 	uint16_t	uz_count;	/* Amount of items in full bucket */
 	uint16_t	uz_count_min;	/* Minimal amount of items there */
 	/* 32bit pad on 64bit. */
@@ -344,6 +345,7 @@ struct uma_zone {
 	 */
 	struct mtx	uz_lock;	/* Lock for the zone */
 	struct uma_klink	uz_klink;	/* klink for first keg. */
+	const char	*uz_name;	/* Text name of the zone */
 	/* The next two fields are used to print a rate-limited warnings. */
 	const char	*uz_warning;	/* Warning to print on failure */
 	struct timeval	uz_ratecheck;	/* Warnings rate-limiting */
