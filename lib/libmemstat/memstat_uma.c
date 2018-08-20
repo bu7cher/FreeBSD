@@ -449,10 +449,10 @@ skip_percpu:
 			mtp->mt_memfreed = mtp->mt_numfrees * mtp->mt_size;
 			mtp->mt_bytes = mtp->mt_memalloced - mtp->mt_memfreed;
 			if (kz.uk_ppera > 1)
-				mtp->mt_countlimit = kz.uk_maxpages /
+				mtp->mt_countlimit = uz.uz_maxpages /
 				    kz.uk_ipers;
 			else
-				mtp->mt_countlimit = kz.uk_maxpages *
+				mtp->mt_countlimit = uz.uz_maxpages *
 				    kz.uk_ipers;
 			mtp->mt_byteslimit = mtp->mt_countlimit * mtp->mt_size;
 			mtp->mt_count = mtp->mt_numallocs - mtp->mt_numfrees;
