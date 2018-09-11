@@ -2589,7 +2589,7 @@ zalloc_start:
 		    ((zone->uz_flags & UMA_ZONE_NUMA) == 0 ||
 		    domain == PCPU_GET(domain))) {
 			cache->uc_allocbucket = bucket;
-		} else if ((zone->uz_flags & UMA_ZONE_NOBUCKETCACHE) != 0) {
+		} else if (zone->uz_bktcount >= zone->uz_bktmax) {
 			critical_exit();
 			ZONE_UNLOCK(zone);
 			bucket_drain(zone, bucket);
@@ -3211,7 +3211,7 @@ zfree_start:
 		/* ub_cnt is pointing to the last free item */
 		KASSERT(bucket->ub_cnt != 0,
 		    ("uma_zfree: Attempting to insert an empty bucket onto the full list.\n"));
-		if ((zone->uz_flags & UMA_ZONE_NOBUCKETCACHE) != 0) {
+		if (zone->uz_bktcount >= zone->uz_bktmax) {
 			ZONE_UNLOCK(zone);
 			bucket_drain(zone, bucket);
 			bucket_free(zone, bucket, udata);
@@ -3410,6 +3410,18 @@ uma_zone_set_max(uma_zone_t zone, int nitems)
 
 	return (nitems);
 }
+
+/* See uma.h */
+int
+uma_zone_set_maxcache(uma_zone_t zone, int nitems)
+{
+   
+	ZONE_LOCK(zone);
+	zone->uz_bktmax = nitems;
+	ZONE_UNLOCK(zone);
+
+	return (nitems);
+} 
 
 /* See uma.h */
 int

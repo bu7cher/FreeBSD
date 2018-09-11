@@ -285,10 +285,6 @@ uma_zone_t uma_zcache_create(char *name, int size, uma_ctor ctor, uma_dtor dtor,
 					 * NUMA aware Zone.  Implements a best
 					 * effort first-touch policy.
 					 */
-#define	UMA_ZONE_NOBUCKETCACHE	0x20000	/*
-					 * Don't cache full buckets.  Limit
-					 * UMA to per-cpu state.
-					 */
 
 /*
  * These flags are shared between the keg and zone.  In zones wishing to add
@@ -510,6 +506,18 @@ int uma_zone_reserve_kva(uma_zone_t zone, int nitems);
  *	int  The effective value of nitems after rounding up based on page size
  */
 int uma_zone_set_max(uma_zone_t zone, int nitems);
+
+/*
+ * Sets a high limit on the number of items allowed in zone's bucket cache
+ * 
+ * Arguments:
+ *      zone  The zone to limit
+ *      nitems  The requested upper limit on the number of items allowed
+ *              
+ * Returns:
+ *      int  The effective value of nitems set
+ */
+int uma_zone_set_maxcache(uma_zone_t zone, int nitems);
 
 /*
  * Obtains the effective limit on the number of items in a zone
