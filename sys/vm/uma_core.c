@@ -220,6 +220,7 @@ struct uma_bucket_zone bucket_zones[] = {
 enum zfreeskip { SKIP_NONE = 0, SKIP_DTOR, SKIP_FINI };
 
 #define	UMA_ANYDOMAIN	-1	/* Special value for domain search. */
+#define	ANYDOMAINFIX(d)	((d) == UMA_ANYDOMAIN ? 0 : (d))
 
 /* Prototypes.. */
 
@@ -245,6 +246,8 @@ static void zone_dtor(void *, int, void *);
 static int zero_init(void *, int, int);
 static void keg_small_init(uma_keg_t keg);
 static void keg_large_init(uma_keg_t keg);
+static void zone_cache_bucket(uma_zone_t, int, uma_bucket_t);
+static void zone_remove_bucket(uma_zone_t, uma_bucket_t);
 static void zone_foreach(void (*zfunc)(uma_zone_t));
 static void zone_timeout(uma_zone_t zone);
 static int hash_alloc(struct uma_hash *);
@@ -435,6 +438,35 @@ bucket_alloc(uma_zone_t zone, void *udata, int flags)
 	return (bucket);
 }
 
+/*
+ * Add a full bucket of items to the zone's bucket cache.
+ */
+static inline void
+zone_cache_bucket(uma_zone_t zone, int domain, uma_bucket_t bucket)
+{
+
+	ZONE_LOCK_ASSERT(zone);
+	KASSERT(zone->uz_bktcount < zone->uz_bktmax, ("%s: zone %p overflow",
+	    __func__, zone));
+
+	zone->uz_bktcount += bucket->ub_cnt;
+	LIST_INSERT_HEAD(&zone->uz_domain[ANYDOMAINFIX(domain)].uzd_buckets,
+	    bucket, ub_link);
+}
+
+/*
+ * Remove a bucket from the zone's bucket cache.
+ */
+static inline void
+zone_remove_bucket(uma_zone_t zone, uma_bucket_t bucket)
+{
+
+	ZONE_LOCK_ASSERT(zone);
+
+	zone->uz_bktcount -= bucket->ub_cnt;
+	LIST_REMOVE(bucket, ub_link);
+}
+ 
 static void
 bucket_free(uma_zone_t zone, uma_bucket_t bucket, void *udata)
 {
@@ -770,16 +802,14 @@ cache_drain_safe_cpu(uma_zone_t zone)
 	cache = &zone->uz_cpu[curcpu];
 	if (cache->uc_allocbucket) {
 		if (cache->uc_allocbucket->ub_cnt != 0)
-			LIST_INSERT_HEAD(&zone->uz_domain[domain].uzd_buckets,
-			    cache->uc_allocbucket, ub_link);
+			zone_cache_bucket(zone, domain, cache->uc_allocbucket);
 		else
 			b1 = cache->uc_allocbucket;
 		cache->uc_allocbucket = NULL;
 	}
 	if (cache->uc_freebucket) {
 		if (cache->uc_freebucket->ub_cnt != 0)
-			LIST_INSERT_HEAD(&zone->uz_domain[domain].uzd_buckets,
-			    cache->uc_freebucket, ub_link);
+			zone_cache_bucket(zone, domain, cache->uc_freebucket);
 		else
 			b2 = cache->uc_freebucket;
 		cache->uc_freebucket = NULL;
@@ -843,7 +873,7 @@ bucket_cache_drain(uma_zone_t zone)
 	for (i = 0; i < vm_ndomains; i++) {
 		zdom = &zone->uz_domain[i];
 		while ((bucket = LIST_FIRST(&zdom->uzd_buckets)) != NULL) {
-			LIST_REMOVE(bucket, ub_link);
+			zone_remove_bucket(zone, bucket);
 			ZONE_UNLOCK(zone);
 			bucket_drain(zone, bucket);
 			bucket_free(zone, bucket, NULL);
@@ -1710,6 +1740,7 @@ zone_ctor(void *mem, int size, void *udata, int flags)
 	zone->uz_warning = NULL;
 	/* The domain structures follow the cpu structures. */
 	zone->uz_domain = (struct uma_zone_domain *)&zone->uz_cpu[mp_ncpus];
+	zone->uz_bktmax = ULONG_MAX;
 	timevalclear(&zone->uz_ratecheck);
 	keg = arg->keg;
 
@@ -2412,6 +2443,7 @@ uma_zalloc_arg(uma_zone_t zone, void *udata, int flags)
 	 * the current cache; when we re-acquire the critical section, we
 	 * must detect and handle migration if it has occurred.
 	 */
+zalloc_restart:
 	critical_enter();
 	cpu = curcpu;
 	cache = &zone->uz_cpu[cpu];
@@ -2519,7 +2551,7 @@ zalloc_start:
 		KASSERT(bucket->ub_cnt != 0,
 		    ("uma_zalloc_arg: Returning an empty bucket."));
 
-		LIST_REMOVE(bucket, ub_link);
+		zone_remove_bucket(zone, bucket);
 		cache->uc_allocbucket = bucket;
 		ZONE_UNLOCK(zone);
 		goto zalloc_start;
@@ -2553,12 +2585,18 @@ zalloc_start:
 		 * initialized bucket to make this less likely or claim
 		 * the memory directly.
 		 */
-		if (cache->uc_allocbucket != NULL ||
-		    (zone->uz_flags & UMA_ZONE_NUMA &&
-		    domain != PCPU_GET(domain)))
-			LIST_INSERT_HEAD(&zdom->uzd_buckets, bucket, ub_link);
-		else
+		if (cache->uc_allocbucket == NULL &&
+		    ((zone->uz_flags & UMA_ZONE_NUMA) == 0 ||
+		    domain == PCPU_GET(domain))) {
 			cache->uc_allocbucket = bucket;
+		} else if ((zone->uz_flags & UMA_ZONE_NOBUCKETCACHE) != 0) {
+			critical_exit();
+			ZONE_UNLOCK(zone);
+			bucket_drain(zone, bucket);
+			bucket_free(zone, bucket, udata);
+			goto zalloc_restart;
+		} else
+			zone_cache_bucket(zone, domain, bucket);
 		ZONE_UNLOCK(zone);
 		goto zalloc_start;
 	}
@@ -3179,7 +3217,7 @@ zfree_start:
 			bucket_free(zone, bucket, udata);
 			goto zfree_restart;
 		} else
-			LIST_INSERT_HEAD(&zdom->uzd_buckets, bucket, ub_link);
+			zone_cache_bucket(zone, domain, bucket);
 	}
 
 	/*

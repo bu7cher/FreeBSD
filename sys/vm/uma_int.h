@@ -351,9 +351,10 @@ struct uma_zone {
 	struct timeval	uz_ratecheck;	/* Warnings rate-limiting */
 	struct task	uz_maxaction;	/* Task to run when at limit */
 
-	/* 16 bytes of pad. */
+	u_long		uz_bktcount;    /* Items in bucket cache */
+	u_long		uz_bktmax;	/* Maximum bucket cache size */
 
-	/* Offset 256, atomic stats. */
+	/* XXXGL Offset 256, atomic stats. */
 	volatile u_long	uz_allocs UMA_ALIGN; /* Total number of allocations */
 	volatile u_long	uz_fails;	/* Total number of alloc failures */
 	volatile u_long	uz_frees;	/* Total number of frees */
@@ -428,6 +429,7 @@ void uma_large_free(uma_slab_t slab);
 #define	ZONE_LOCK(z)	mtx_lock((z)->uz_lockptr)
 #define	ZONE_TRYLOCK(z)	mtx_trylock((z)->uz_lockptr)
 #define	ZONE_UNLOCK(z)	mtx_unlock((z)->uz_lockptr)
+#define	ZONE_LOCK_ASSERT(z)	mtx_assert((z)->uz_lockptr, MA_OWNED)
 #define	ZONE_LOCK_FINI(z)	mtx_destroy(&(z)->uz_lock)
 
 /*
