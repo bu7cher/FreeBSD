@@ -288,7 +288,7 @@ extern const char *buf_wmesg;		/* Default buffer lock message */
  * Initialize a lock.
  */
 #define BUF_LOCKINIT(bp)						\
-	lockinit(&(bp)->b_lock, PRIBIO + 4, buf_wmesg, 0, 0)
+	lockinit(&(bp)->b_lock, PRIBIO + 4, buf_wmesg, 0, LK_NEW)
 /*
  *
  * Get a lock sleeping non-interruptably until it becomes available.
@@ -494,8 +494,6 @@ extern int	bdwriteskip;
 extern int	dirtybufferflushes;
 extern int	altbufferflushes;
 extern int	nswbuf;			/* Number of swap I/O buffer headers. */
-extern int	cluster_pbuf_freecnt;	/* Number of pbufs for clusters */
-extern uma_zone_t vnode_pager_zone;
 extern caddr_t	unmapped_buf;	/* Data address for unmapped buffers. */
 
 static inline int
@@ -536,7 +534,6 @@ void	brelse(struct buf *);
 void	bqrelse(struct buf *);
 int	vfs_bio_awrite(struct buf *);
 void	vfs_drain_busy_pages(struct buf *bp);
-struct buf *     getpbuf(int *);
 struct buf *incore(struct bufobj *, daddr_t);
 struct buf *gbincore(struct bufobj *, daddr_t);
 struct buf *getblk(struct vnode *, daddr_t, int, int, int, int);
@@ -547,6 +544,11 @@ int	bufwait(struct buf *);
 int	bufwrite(struct buf *);
 void	bufdone(struct buf *);
 void	bd_speedup(void);
+
+extern uma_zone_t pbuf_zone;
+int	pbuf_init(void *, int, int);
+int	pbuf_ctor(void *, int, void *, int);
+void	pbuf_dtor(void *, int, void *);
 
 int	cluster_read(struct vnode *, u_quad_t, daddr_t, long,
 	    struct ucred *, long, int, int, struct buf **);
@@ -561,7 +563,6 @@ void	vfs_busy_pages(struct buf *, int clear_modify);
 void	vfs_unbusy_pages(struct buf *);
 int	vmapbuf(struct buf *, int);
 void	vunmapbuf(struct buf *);
-void	relpbuf(struct buf *, int *);
 void	brelvp(struct buf *);
 void	bgetvp(struct vnode *, struct buf *);
 void	pbgetbo(struct bufobj *bo, struct buf *bp);
@@ -570,7 +571,6 @@ void	pbrelbo(struct buf *);
 void	pbrelvp(struct buf *);
 int	allocbuf(struct buf *bp, int size);
 void	reassignbuf(struct buf *);
-struct	buf *trypbuf(int *);
 void	bwait(struct buf *, u_char, const char *);
 void	bdone(struct buf *);
 

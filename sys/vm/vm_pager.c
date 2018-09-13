@@ -86,12 +86,9 @@ __FBSDID("$FreeBSD$");
 #include <vm/vm_pager.h>
 #include <vm/vm_extern.h>
 #include <vm/uma.h>
+#include "opt_swap.h"
 
-int cluster_pbuf_freecnt = -1;	/* unlimited to begin with */
-
-uma_zone_t vnode_pager_zone;
-
-struct buf *swbuf;
+uma_zone_t pbuf_zone;
 
 static int dead_pager_getpages(vm_object_t, vm_page_t *, int, int *, int *);
 static vm_object_t dead_pager_alloc(void *, vm_ooffset_t, vm_prot_t,
@@ -99,9 +96,6 @@ static vm_object_t dead_pager_alloc(void *, vm_ooffset_t, vm_prot_t,
 static void dead_pager_putpages(vm_object_t, vm_page_t *, int, int, int *);
 static boolean_t dead_pager_haspage(vm_object_t, vm_pindex_t, int *, int *);
 static void dead_pager_dealloc(vm_object_t);
-static int pbuf_init(void *, int, int);
-static int pbuf_ctor(void *, int, void *, int);
-static void pbuf_dtor(void *, int, void *);
 
 static int
 dead_pager_getpages(vm_object_t obj, vm_page_t *ma, int count, int *rbehind,
@@ -173,9 +167,6 @@ struct pagerops *pagertab[] = {
  * cleaning requests (NPENDINGIO == 64) * the maximum swap cluster size
  * (MAXPHYS == 64k) if you want to get the most efficiency.
  */
-struct mtx_padalign __exclusive_cache_line pbuf_mtx;
-static TAILQ_HEAD(swqueue, buf) bswlist;
-static int bswneeded;
 vm_offset_t swapbkva;		/* swap buffers kva */
 
 void
@@ -183,7 +174,6 @@ vm_pager_init(void)
 {
 	struct pagerops **pgops;
 
-	TAILQ_INIT(&bswlist);
 	/*
 	 * Initialize known pagers
 	 */
@@ -195,29 +185,24 @@ vm_pager_init(void)
 void
 vm_pager_bufferinit(void)
 {
-	struct buf *bp;
-	int i;
 
-	mtx_init(&pbuf_mtx, "pbuf mutex", NULL, MTX_DEF);
-	bp = swbuf;
 	/*
-	 * Now set up swap and physical I/O buffer headers.
+	 * swbufs are used as temporary holders for I/O, such as paging I/O.
+	 * We have no less then 16 and no more then 256.
 	 */
-	for (i = 0; i < nswbuf; i++, bp++) {
-		TAILQ_INSERT_HEAD(&bswlist, bp, b_freelist);
-		BUF_LOCKINIT(bp);
-		LIST_INIT(&bp->b_dep);
-		bp->b_rcred = bp->b_wcred = NOCRED;
-		bp->b_xflags = 0;
-	}
+#ifndef	NSWBUF_MIN
+#define	NSWBUF_MIN	16
+#endif
+	nswbuf = min(nbuf / 4, 256);
+	TUNABLE_INT_FETCH("kern.nswbuf", &nswbuf);
+	if (nswbuf < NSWBUF_MIN)
+		nswbuf = NSWBUF_MIN;
 
-	cluster_pbuf_freecnt = nswbuf / 2;
-
-	vnode_pager_zone = uma_zcreate("pbuf", sizeof(struct buf),
+	/* Main zone for paging bufs. */
+	pbuf_zone = uma_zcreate("pbuf", sizeof(struct buf),
 	    pbuf_ctor, pbuf_dtor, pbuf_init, NULL, UMA_ALIGN_CACHE,
 	    UMA_ZONE_VM | UMA_ZONE_NOFREE);
-	uma_prealloc(vnode_pager_zone, nswbuf * 8);
-	uma_zone_set_max(vnode_pager_zone, nswbuf * 8);
+	uma_zone_set_max(pbuf_zone, nswbuf);
 }
 
 /*
@@ -357,141 +342,7 @@ vm_pager_object_lookup(struct pagerlst *pg_list, void *handle)
 	return (object);
 }
 
-/*
- * initialize a physical buffer
- */
-
-/*
- * XXX This probably belongs in vfs_bio.c
- */
-static void
-initpbuf(struct buf *bp)
-{
-
-	KASSERT(bp->b_bufobj == NULL, ("initpbuf with bufobj"));
-	KASSERT(bp->b_vp == NULL, ("initpbuf with vp"));
-	bp->b_rcred = NOCRED;
-	bp->b_wcred = NOCRED;
-	bp->b_qindex = 0;	/* On no queue (QUEUE_NONE) */
-	bp->b_kvabase = (caddr_t)(MAXPHYS * (bp - swbuf)) + swapbkva;
-	bp->b_data = bp->b_kvabase;
-	bp->b_kvasize = MAXPHYS;
-	bp->b_flags = 0;
-	bp->b_xflags = 0;
-	bp->b_ioflags = 0;
-	bp->b_iodone = NULL;
-	bp->b_error = 0;
-	BUF_LOCK(bp, LK_EXCLUSIVE, NULL);
-	buf_track(bp, __func__);
-}
-
-/*
- * allocate a physical buffer
- *
- *	There are a limited number (nswbuf) of physical buffers.  We need
- *	to make sure that no single subsystem is able to hog all of them,
- *	so each subsystem implements a counter which is typically initialized
- *	to 1/2 nswbuf.  getpbuf() decrements this counter in allocation and
- *	increments it on release, and blocks if the counter hits zero.  A
- *	subsystem may initialize the counter to -1 to disable the feature,
- *	but it must still be sure to match up all uses of getpbuf() with 
- *	relpbuf() using the same variable.
- *
- *	NOTE: pfreecnt can be NULL, but this 'feature' will be removed
- *	relatively soon when the rest of the subsystems get smart about it. XXX
- */
-struct buf *
-getpbuf(int *pfreecnt)
-{
-	struct buf *bp;
-
-	mtx_lock(&pbuf_mtx);
-	for (;;) {
-		if (pfreecnt != NULL) {
-			while (*pfreecnt == 0) {
-				msleep(pfreecnt, &pbuf_mtx, PVM, "wswbuf0", 0);
-			}
-		}
-
-		/* get a bp from the swap buffer header pool */
-		if ((bp = TAILQ_FIRST(&bswlist)) != NULL)
-			break;
-
-		bswneeded = 1;
-		msleep(&bswneeded, &pbuf_mtx, PVM, "wswbuf1", 0);
-		/* loop in case someone else grabbed one */
-	}
-	TAILQ_REMOVE(&bswlist, bp, b_freelist);
-	if (pfreecnt)
-		--*pfreecnt;
-	mtx_unlock(&pbuf_mtx);
-	initpbuf(bp);
-	return (bp);
-}
-
-/*
- * allocate a physical buffer, if one is available.
- *
- *	Note that there is no NULL hack here - all subsystems using this
- *	call understand how to use pfreecnt.
- */
-struct buf *
-trypbuf(int *pfreecnt)
-{
-	struct buf *bp;
-
-	mtx_lock(&pbuf_mtx);
-	if (*pfreecnt == 0 || (bp = TAILQ_FIRST(&bswlist)) == NULL) {
-		mtx_unlock(&pbuf_mtx);
-		return NULL;
-	}
-	TAILQ_REMOVE(&bswlist, bp, b_freelist);
-	--*pfreecnt;
-	mtx_unlock(&pbuf_mtx);
-	initpbuf(bp);
-	return (bp);
-}
-
-/*
- * release a physical buffer
- *
- *	NOTE: pfreecnt can be NULL, but this 'feature' will be removed
- *	relatively soon when the rest of the subsystems get smart about it. XXX
- */
-void
-relpbuf(struct buf *bp, int *pfreecnt)
-{
-
-	if (bp->b_rcred != NOCRED) {
-		crfree(bp->b_rcred);
-		bp->b_rcred = NOCRED;
-	}
-	if (bp->b_wcred != NOCRED) {
-		crfree(bp->b_wcred);
-		bp->b_wcred = NOCRED;
-	}
-
-	KASSERT(bp->b_vp == NULL, ("relpbuf with vp"));
-	KASSERT(bp->b_bufobj == NULL, ("relpbuf with bufobj"));
-
-	buf_track(bp, __func__);
-	BUF_UNLOCK(bp);
-
-	mtx_lock(&pbuf_mtx);
-	TAILQ_INSERT_HEAD(&bswlist, bp, b_freelist);
-
-	if (bswneeded) {
-		bswneeded = 0;
-		wakeup(&bswneeded);
-	}
-	if (pfreecnt) {
-		if (++*pfreecnt == 1)
-			wakeup(pfreecnt);
-	}
-	mtx_unlock(&pbuf_mtx);
-}
-
-static int
+int
 pbuf_ctor(void *mem, int size, void *arg, int flags)
 {
 	struct buf *bp = mem;
@@ -514,7 +365,7 @@ pbuf_ctor(void *mem, int size, void *arg, int flags)
 	return (0);
 }
 
-static void
+void
 pbuf_dtor(void *mem, int size, void *arg)
 {
 	struct buf *bp = mem;
@@ -531,7 +382,7 @@ pbuf_dtor(void *mem, int size, void *arg)
 	BUF_UNLOCK(bp);
 }
 
-static int
+int
 pbuf_init(void *mem, int size, int flags)
 {
 	struct buf *bp = mem;

@@ -58,6 +58,7 @@ __FBSDID("$FreeBSD$");
 #include "opt_vm.h"
 
 #include <sys/param.h>
+#include <sys/kernel.h>
 #include <sys/systm.h>
 #include <sys/sysctl.h>
 #include <sys/proc.h>
@@ -113,6 +114,21 @@ static struct domainset *vnode_domainset = NULL;
 SYSCTL_PROC(_debug, OID_AUTO, vnode_domainset, CTLTYPE_STRING | CTLFLAG_RW,
     &vnode_domainset, 0, sysctl_handle_domainset, "A",
     "Default vnode NUMA policy");
+
+static uma_zone_t vnode_pbuf_zone;
+
+static void
+vnode_pager_init(void *dummy)
+{
+
+	vnode_pbuf_zone = uma_zsecond_create("vnpbuf", pbuf_ctor, pbuf_dtor,
+	    pbuf_init, NULL, pbuf_zone);
+	uma_zone_set_max(vnode_pbuf_zone, nswbuf * 8);
+#if 0
+	uma_prealloc(vnode_pbuf_zone, nswbuf * 8);
+#endif
+}
+SYSINIT(vnode_pager, SI_SUB_CPU, SI_ORDER_ANY, vnode_pager_init, NULL);
 
 /* Create the VM system backing object for this vnode */
 int
@@ -561,7 +577,7 @@ vnode_pager_input_smlfs(vm_object_t object, vm_page_t m)
 				break;
 		}
 		if (fileaddr != -1) {
-			bp = uma_zalloc(vnode_pager_zone, M_WAITOK);
+			bp = uma_zalloc(vnode_pbuf_zone, M_WAITOK);
 
 			/* build a minimal buffer header */
 			bp->b_iocmd = BIO_READ;
@@ -593,7 +609,7 @@ vnode_pager_input_smlfs(vm_object_t object, vm_page_t m)
 			 */
 			bp->b_vp = NULL;
 			pbrelbo(bp);
-			uma_zfree(vnode_pager_zone, bp);
+			uma_zfree(vnode_pbuf_zone, bp);
 			if (error)
 				break;
 		} else
@@ -786,7 +802,7 @@ vnode_pager_generic_getpages(struct vnode *vp, vm_page_t *m, int count,
 		return (VM_PAGER_OK);
 	}
 
-	bp = uma_zalloc(vnode_pager_zone, M_WAITOK);
+	bp = uma_zalloc(vnode_pbuf_zone, M_WAITOK);
 
 	/*
 	 * Get the underlying device blocks for the file with VOP_BMAP().
@@ -795,7 +811,7 @@ vnode_pager_generic_getpages(struct vnode *vp, vm_page_t *m, int count,
 	 */
 	error = VOP_BMAP(vp, foff / bsize, &bo, &bp->b_blkno, &after, &before);
 	if (error == EOPNOTSUPP) {
-		uma_zfree(vnode_pager_zone, bp);
+		uma_zfree(vnode_pbuf_zone, bp);
 		VM_OBJECT_WLOCK(object);
 		for (i = 0; i < count; i++) {
 			VM_CNT_INC(v_vnodein);
@@ -807,7 +823,7 @@ vnode_pager_generic_getpages(struct vnode *vp, vm_page_t *m, int count,
 		VM_OBJECT_WUNLOCK(object);
 		return (error);
 	} else if (error != 0) {
-		uma_zfree(vnode_pager_zone, bp);
+		uma_zfree(vnode_pbuf_zone, bp);
 		return (VM_PAGER_ERROR);
 	}
 
@@ -816,7 +832,7 @@ vnode_pager_generic_getpages(struct vnode *vp, vm_page_t *m, int count,
 	 * than a page size, then use special small filesystem code.
 	 */
 	if (pagesperblock == 0) {
-		uma_zfree(vnode_pager_zone, bp);
+		uma_zfree(vnode_pbuf_zone, bp);
 		for (i = 0; i < count; i++) {
 			VM_CNT_INC(v_vnodein);
 			VM_CNT_INC(v_vnodepgsin);
@@ -835,7 +851,7 @@ vnode_pager_generic_getpages(struct vnode *vp, vm_page_t *m, int count,
 		KASSERT(count == 1,
 		    ("%s: array[%d] request to a sparse file %p", __func__,
 		    count, vp));
-		uma_zfree(vnode_pager_zone, bp);
+		uma_zfree(vnode_pbuf_zone, bp);
 		pmap_zero_page(m[0]);
 		KASSERT(m[0]->dirty == 0, ("%s: page %p is dirty",
 		    __func__, m[0]));
@@ -1049,7 +1065,7 @@ vnode_pager_generic_getpages(struct vnode *vp, vm_page_t *m, int count,
 			bp->b_pages[i] = NULL;
 		bp->b_vp = NULL;
 		pbrelbo(bp);
-		uma_zfree(vnode_pager_zone, bp);
+		uma_zfree(vnode_pbuf_zone, bp);
 		return (error != 0 ? VM_PAGER_ERROR : VM_PAGER_OK);
 	}
 }
@@ -1067,7 +1083,7 @@ vnode_pager_generic_getpages_done_async(struct buf *bp)
 		bp->b_pages[i] = NULL;
 	bp->b_vp = NULL;
 	pbrelbo(bp);
-	uma_zfree(vnode_pager_zone, bp);
+	uma_zfree(vnode_pbuf_zone, bp);
 }
 
 static int
