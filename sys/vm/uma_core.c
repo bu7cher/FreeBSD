@@ -466,7 +466,7 @@ zone_remove_bucket(uma_zone_t zone, uma_bucket_t bucket)
 	zone->uz_bktcount -= bucket->ub_cnt;
 	LIST_REMOVE(bucket, ub_link);
 }
- 
+
 static void
 bucket_free(uma_zone_t zone, uma_bucket_t bucket, void *udata)
 {
@@ -3415,13 +3415,13 @@ uma_zone_set_max(uma_zone_t zone, int nitems)
 int
 uma_zone_set_maxcache(uma_zone_t zone, int nitems)
 {
-   
+
 	ZONE_LOCK(zone);
 	zone->uz_bktmax = nitems;
 	ZONE_UNLOCK(zone);
 
 	return (nitems);
-} 
+}
 
 /* See uma.h */
 int

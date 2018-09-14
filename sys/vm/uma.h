@@ -509,11 +509,11 @@ int uma_zone_set_max(uma_zone_t zone, int nitems);
 
 /*
  * Sets a high limit on the number of items allowed in zone's bucket cache
- * 
+ *
  * Arguments:
  *      zone  The zone to limit
  *      nitems  The requested upper limit on the number of items allowed
- *              
+ *
  * Returns:
  *      int  The effective value of nitems set
  */
