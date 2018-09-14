@@ -1503,8 +1503,6 @@ keg_large_init(uma_keg_t keg)
 	u_int shsize;
 
 	KASSERT(keg != NULL, ("Keg is null in keg_large_init"));
-	KASSERT((keg->uk_flags & UMA_ZFLAG_CACHEONLY) == 0,
-	    ("keg_large_init: Cannot large-init a UMA_ZFLAG_CACHEONLY keg"));
 	KASSERT((keg->uk_flags & UMA_ZONE_PCPU) == 0,
 	    ("%s: Cannot large-init a UMA_ZONE_PCPU keg", __func__));
 
