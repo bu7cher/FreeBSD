@@ -329,10 +329,10 @@ struct uma_zone {
 	uma_release	uz_release;	/* Release memory from cache. */
 	void		*uz_arg;	/* Import/release argument. */
 	uma_slaballoc	uz_slab;	/* Allocate a slab from the backend. */
-	uint32_t	uz_pages;	/* Total page count */
-	uint32_t	uz_maxpages;	/* Maximum number of pages to alloc */
 	uint16_t	uz_count;	/* Amount of items in full bucket */
 	uint16_t	uz_count_min;	/* Minimal amount of items there */
+	uint16_t	uz_count_max;	/* Minimal amount of items there */
+	uint64_t	uz_maxitems;	/* Maximum number of items to alloc */
 	/* 32bit pad on 64bit. */
 	LIST_ENTRY(uma_zone)	uz_link;	/* List of all zones in keg */
 	LIST_HEAD(,uma_klink)	uz_kegs;	/* List of kegs. */
@@ -353,6 +353,9 @@ struct uma_zone {
 
 	u_long		uz_bktcount;    /* Items in bucket cache */
 	u_long		uz_bktmax;	/* Maximum bucket cache size */
+
+	uint64_t	uz_items;	/* Total items count */
+	uint32_t	uz_sleepers;	/* Number of sleepers on memory */
 
 	/* XXXGL Offset 256, atomic stats. */
 	volatile u_long	uz_allocs UMA_ALIGN; /* Total number of allocations */
@@ -376,7 +379,6 @@ struct uma_zone {
 #define	UMA_ZFLAG_DRAINING	0x08000000	/* Running zone_drain. */
 #define	UMA_ZFLAG_BUCKET	0x10000000	/* Bucket zone. */
 #define UMA_ZFLAG_INTERNAL	0x20000000	/* No offpage no PCPU. */
-#define UMA_ZFLAG_FULL		0x40000000	/* Reached uz_maxpages */
 #define UMA_ZFLAG_CACHEONLY	0x80000000	/* Don't ask VM for buckets. */
 
 #define	UMA_ZFLAG_INHERIT						\
