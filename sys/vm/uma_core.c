@@ -3215,11 +3215,7 @@ zone_release(uma_zone_t zone, void **bucket, int cnt)
 			}
 		} else {
 			slab = vtoslab((vm_offset_t)item);
-			if (slab->us_keg != keg) {
-				KEG_UNLOCK(keg);
-				keg = slab->us_keg;
-				KEG_LOCK(keg);
-			}
+			MPASS(slab->us_keg == keg);
 		}
 		slab_free_item(keg, zone, slab, item);
 		if (zone->uz_sleepers && zone->uz_items < zone->uz_maxitems)
