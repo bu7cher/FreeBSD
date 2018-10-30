@@ -2507,7 +2507,6 @@ zalloc_start:
 	/* Don't wait for buckets, preserve caller's NOVM setting. */
 	bucket = bucket_alloc(zone, udata, M_NOWAIT | (flags & M_NOVM));
 	if (bucket == NULL) {
-		/* QQQ count */
 		ZONE_LOCK(zone);
 		zone->uz_items -= max;
 		ZONE_UNLOCK(zone);
@@ -2532,7 +2531,6 @@ zalloc_start:
 		 * rest back onto the freelist.
 		 */
 		if (i != bucket->ub_cnt) {
-			/* QQQ count */
 			zone->uz_release(zone->uz_arg, &bucket->ub_bucket[i],
 			    bucket->ub_cnt - i);
 #ifdef INVARIANTS
@@ -2548,7 +2546,6 @@ zalloc_start:
 	 * we reduced ub_cnt due to failed uz_init.
 	 */
 	if (bucket->ub_cnt < max) {
-		/* QQQ count */
 		ZONE_LOCK(zone);
 		zone->uz_items -= max - bucket->ub_cnt;
 		if (zone->uz_sleepers > 0 &&
