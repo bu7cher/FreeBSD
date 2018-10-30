@@ -222,7 +222,6 @@ struct uma_bucket_zone bucket_zones[] = {
 enum zfreeskip { SKIP_NONE = 0, SKIP_DTOR, SKIP_FINI };
 
 #define	UMA_ANYDOMAIN	-1	/* Special value for domain search. */
-#define	ANYDOMAINFIX(d)	((d) == UMA_ANYDOMAIN ? 0 : (d))
 
 /* Prototypes.. */
 
@@ -450,8 +449,9 @@ zone_cache_bucket(uma_zone_t zone, int domain, uma_bucket_t bucket)
 	    __func__, zone));
 
 	zone->uz_bktcount += bucket->ub_cnt;
-	LIST_INSERT_HEAD(&zone->uz_domain[ANYDOMAINFIX(domain)].uzd_buckets,
-	    bucket, ub_link);
+	if (domain == UMA_ANYDOMAIN)
+		domain = 0;
+	LIST_INSERT_HEAD(&zone->uz_domain[domain].uzd_buckets, bucket, ub_link);
 }
 
 /*
