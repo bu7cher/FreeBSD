@@ -265,7 +265,7 @@ static void bucket_free(uma_zone_t zone, uma_bucket_t, void *);
 static void bucket_zone_drain(void);
 static uma_slab_t zone_fetch_slab(uma_zone_t, uma_keg_t, int, int);
 static void *slab_alloc_item(uma_keg_t keg, uma_slab_t slab);
-static void slab_free_item(uma_keg_t keg, uma_zone_t zone, uma_slab_t slab, void *item);
+static void slab_free_item(uma_zone_t zone, uma_slab_t slab, void *item);
 static uma_keg_t uma_kcreate(uma_zone_t zone, size_t size, uma_init uminit,
     uma_fini fini, int align, uint32_t flags);
 static int zone_import(uma_zone_t, void **, int, int, int);
@@ -3163,14 +3163,16 @@ uma_zfree_domain(uma_zone_t zone, void *item, void *udata)
 }
 
 static void
-slab_free_item(uma_keg_t keg, uma_zone_t zone, uma_slab_t slab, void *item)
+slab_free_item(uma_zone_t zone, uma_slab_t slab, void *item)
 {
+	uma_keg_t keg;
 	uma_domain_t dom;
 	uint8_t freei;
 
+	keg = zone->uz_keg;
+	MPASS(zone->uz_lockptr == &keg->uk_lock);
 	mtx_assert(&keg->uk_lock, MA_OWNED);
 	MPASS(keg == slab->us_keg);
-	MPASS(zone->uz_lockptr == &keg->uk_lock);
 
 	dom = &keg->uk_domain[slab->us_domain];
 
@@ -3217,7 +3219,7 @@ zone_release(uma_zone_t zone, void **bucket, int cnt)
 			slab = vtoslab((vm_offset_t)item);
 			MPASS(slab->us_keg == keg);
 		}
-		slab_free_item(keg, zone, slab, item);
+		slab_free_item(zone, slab, item);
 		if (zone->uz_sleepers && zone->uz_items < zone->uz_maxitems)
 			wakeup_one(zone);
 	}
