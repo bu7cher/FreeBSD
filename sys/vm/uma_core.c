@@ -2716,7 +2716,6 @@ restart:
 		    ("%s: zone %p overflow", __func__, zone));
 
 		slab = keg_alloc_slab(keg, zone, domain, aflags);
-
 		/*
 		 * If we got a slab here it's safe to mark it partially used
 		 * and return.  We assume that the caller is going to remove
