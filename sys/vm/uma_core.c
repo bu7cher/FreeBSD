@@ -2629,7 +2629,7 @@ uma_zalloc_domain(uma_zone_t zone, void *udata, int domain, int flags)
  * only 'domain'.
  */
 static uma_slab_t
-keg_first_slab(uma_keg_t keg, uma_zone_t zone, int domain, bool rr)
+keg_first_slab(uma_keg_t keg, int domain, bool rr)
 {
 	uma_domain_t dom;
 	uma_slab_t slab;
@@ -2638,7 +2638,6 @@ keg_first_slab(uma_keg_t keg, uma_zone_t zone, int domain, bool rr)
 	KASSERT(domain >= 0 && domain < vm_ndomains,
 	    ("keg_first_slab: domain %d out of range", domain));
 	mtx_assert(&keg->uk_lock, MA_OWNED);
-	MPASS(zone->uz_lockptr == &keg->uk_lock);
 
 	slab = NULL;
 	start = domain;
@@ -2660,7 +2659,7 @@ keg_first_slab(uma_keg_t keg, uma_zone_t zone, int domain, bool rr)
 }
 
 static uma_slab_t
-keg_fetch_free_slab(uma_keg_t keg, uma_zone_t zone, int domain, bool rr, int flags)
+keg_fetch_free_slab(uma_keg_t keg, int domain, bool rr, int flags)
 {
 	uint32_t reserve;
 
@@ -2669,7 +2668,7 @@ keg_fetch_free_slab(uma_keg_t keg, uma_zone_t zone, int domain, bool rr, int fla
 	reserve = (flags & M_USE_RESERVE) != 0 ? 0 : keg->uk_reserve;
 	if (keg->uk_free <= reserve)
 		return (NULL);
-	return (keg_first_slab(keg, zone, domain, rr));
+	return (keg_first_slab(keg, domain, rr));
 }
 
 static uma_slab_t
@@ -2703,7 +2702,7 @@ restart:
 	}
 
 	for (;;) {
-		slab = keg_fetch_free_slab(keg, zone, domain, rr, flags);
+		slab = keg_fetch_free_slab(keg, domain, rr, flags);
 		if (slab != NULL) {
 			MPASS(slab->us_keg == keg);
 			return (slab);
@@ -2749,7 +2748,7 @@ restart:
 	 * could have while we were unlocked.  Check again before we
 	 * fail.
 	 */
-	if ((slab = keg_fetch_free_slab(keg, zone, domain, rr, flags)) != NULL) {
+	if ((slab = keg_fetch_free_slab(keg, domain, rr, flags)) != NULL) {
 		MPASS(slab->us_keg == keg);
 		return (slab);
 	}
