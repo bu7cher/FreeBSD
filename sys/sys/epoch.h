@@ -41,11 +41,6 @@ struct epoch_context_user {
 
 #ifndef _KERNEL
 typedef struct epoch_context_user epoch_context_t;
-
-/* XXXGL: temporary before we remove trackers embedded into network structs */
-struct epoch_tracker {
-	void *datap[3];
-};
 #endif
 
 #ifdef _KERNEL
@@ -94,6 +89,9 @@ void epoch_enter_preempt(epoch_t epoch, epoch_tracker_t et);
 void epoch_exit_preempt(epoch_t epoch, epoch_tracker_t et);
 void epoch_enter(epoch_t epoch);
 void epoch_exit(epoch_t epoch);
+
+void epoch_thread_init(struct thread *);
+void epoch_thread_fini(struct thread *);
 
 #endif /* _KERNEL */
 #endif /* _SYS_EPOCH_H_ */
