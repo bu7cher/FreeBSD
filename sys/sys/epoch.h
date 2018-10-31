@@ -29,10 +29,13 @@
 
 #ifndef _SYS_EPOCH_H_
 #define _SYS_EPOCH_H_
-#ifdef _KERNEL
+
+#ifndef _KERNEL
+#error "no user-serviceable parts inside"
+#endif
+
 #include <sys/lock.h>
 #include <sys/pcpu.h>
-#endif
 
 struct epoch;
 typedef struct epoch *epoch_t;
@@ -68,26 +71,14 @@ void	epoch_wait_preempt(epoch_t epoch);
 void	epoch_call(epoch_t epoch, epoch_context_t ctx, void (*callback) (epoch_context_t));
 int	in_epoch(epoch_t epoch);
 int in_epoch_verbose(epoch_t epoch, int dump_onfail);
-#ifdef _KERNEL
 DPCPU_DECLARE(int, epoch_cb_count);
 DPCPU_DECLARE(struct grouptask, epoch_cb_task);
 #define EPOCH_MAGIC0 0xFADECAFEF00DD00D
 #define EPOCH_MAGIC1 0xBADDBABEDEEDFEED
 
-void epoch_enter_preempt_KBI(epoch_t epoch, epoch_tracker_t et);
-void epoch_exit_preempt_KBI(epoch_t epoch, epoch_tracker_t et);
-void epoch_enter_KBI(epoch_t epoch);
-void epoch_exit_KBI(epoch_t epoch);
+void epoch_enter_preempt(epoch_t epoch, epoch_tracker_t et);
+void epoch_exit_preempt(epoch_t epoch, epoch_tracker_t et);
+void epoch_enter(epoch_t epoch);
+void epoch_exit(epoch_t epoch);
 
-
-#if defined(KLD_MODULE) && !defined(KLD_TIED)
-#define epoch_enter_preempt(e, t)	epoch_enter_preempt_KBI((e), (t))
-#define epoch_exit_preempt(e, t)	epoch_exit_preempt_KBI((e), (t))
-#define epoch_enter(e)	epoch_enter_KBI((e))
-#define epoch_exit(e)	epoch_exit_KBI((e))
-#else
-#include <sys/epoch_private.h>
-#endif /* KLD_MODULE */
-
-#endif /* _KERNEL */
 #endif
