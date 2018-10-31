@@ -805,7 +805,7 @@ lagg_port_checkstacking(struct lagg_softc *sc)
 #endif
 
 static void
-lagg_port_destroy_cb(epoch_context_t ec)
+lagg_port_destroy_cb(epoch_context_t *ec)
 {
 	struct lagg_port *lp;
 	struct ifnet *ifp;

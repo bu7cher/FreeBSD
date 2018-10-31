@@ -610,7 +610,7 @@ if_free_internal(struct ifnet *ifp)
 }
 
 static void
-if_destroy(epoch_context_t ctx)
+if_destroy(epoch_context_t *ctx)
 {
 	struct ifnet *ifp;
 
@@ -1842,7 +1842,7 @@ ifa_ref(struct ifaddr *ifa)
 }
 
 static void
-ifa_destroy(epoch_context_t ctx)
+ifa_destroy(epoch_context_t *ctx)
 {
 	struct ifaddr *ifa;
 
@@ -3439,7 +3439,7 @@ if_freemulti_internal(struct ifmultiaddr *ifma)
 }
 
 static void
-if_destroymulti(epoch_context_t ctx)
+if_destroymulti(epoch_context_t *ctx)
 {
 	struct ifmultiaddr *ifma;
 

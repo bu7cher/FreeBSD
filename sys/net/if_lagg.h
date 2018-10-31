@@ -251,8 +251,8 @@ struct lagg_port {
 		     const struct sockaddr *, struct route *);
 	struct lagg_counters		port_counters;	/* ifp counters copy */
 
-	CK_SLIST_ENTRY(lagg_port)		lp_entries;
-	struct epoch_context	lp_epoch_ctx;
+	CK_SLIST_ENTRY(lagg_port)	lp_entries;
+	epoch_context_t			lp_epoch_ctx;
 };
 
 extern struct mbuf *(*lagg_input_p)(struct ifnet *, struct mbuf *);

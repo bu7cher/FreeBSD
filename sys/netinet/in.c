@@ -1060,7 +1060,7 @@ struct in_llentry {
  * Do actual deallocation of @lle.
  */
 static void
-in_lltable_destroy_lle_unlocked(epoch_context_t ctx)
+in_lltable_destroy_lle_unlocked(epoch_context_t *ctx)
 {
 	struct llentry *lle;
 

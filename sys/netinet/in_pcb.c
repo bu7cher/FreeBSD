@@ -240,7 +240,7 @@ in_pcblbgroup_alloc(struct inpcblbgrouphead *hdr, u_char vflag,
 }
 
 static void
-in_pcblbgroup_free_deferred(epoch_context_t ctx)
+in_pcblbgroup_free_deferred(epoch_context_t *ctx)
 {
 	struct inpcblbgroup *grp;
 
@@ -1547,7 +1547,7 @@ in_pcbrele(struct inpcb *inp)
 }
 
 void
-in_pcblist_rele_rlocked(epoch_context_t ctx)
+in_pcblist_rele_rlocked(epoch_context_t *ctx)
 {
 	struct in_pcblist *il;
 	struct inpcb *inp;
@@ -1569,7 +1569,7 @@ in_pcblist_rele_rlocked(epoch_context_t ctx)
 }
 
 static void
-inpcbport_free(epoch_context_t ctx)
+inpcbport_free(epoch_context_t *ctx)
 {
 	struct inpcbport *phd;
 
@@ -1578,7 +1578,7 @@ inpcbport_free(epoch_context_t ctx)
 }
 
 static void
-in_pcbfree_deferred(epoch_context_t ctx)
+in_pcbfree_deferred(epoch_context_t *ctx)
 {
 	struct inpcb *inp;
 	int released __unused;
@@ -2559,7 +2559,7 @@ in_pcbinshash_internal(struct inpcb *inp, int do_pcbgroup_update)
 		if (phd == NULL) {
 			return (ENOBUFS); /* XXX */
 		}
-		bzero(&phd->phd_epoch_ctx, sizeof(struct epoch_context));
+		bzero(&phd->phd_epoch_ctx, sizeof(phd->phd_epoch_ctx));
 		phd->phd_port = inp->inp_lport;
 		CK_LIST_INIT(&phd->phd_pcblist);
 		CK_LIST_INSERT_HEAD(pcbporthash, phd, phd_hash);

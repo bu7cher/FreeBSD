@@ -36,6 +36,7 @@
 #define	_NETINET_IP_VAR_H_
 
 #include <sys/queue.h>
+#include <sys/epoch.h>
 
 /*
  * Overlay for ip header used by other protocols (tcp, udp).
@@ -80,9 +81,6 @@ struct ipoption {
 	char	ipopt_list[MAX_IPOPTLEN];	/* options proper */
 };
 
-#ifdef _KERNEL
-#include <sys/epoch.h>
-
 /*
  * Structure attached to inpcb.ip_moptions and
  * passed to ip_output when IP multicast options are in use.
@@ -98,9 +96,8 @@ struct ip_moptions {
 	u_short	imo_max_memberships;	/* max memberships this socket */
 	struct	in_multi **imo_membership;	/* group memberships */
 	struct	in_mfilter *imo_mfilters;	/* source filters */
-	struct	epoch_context imo_epoch_ctx;
+	epoch_context_t imo_epoch_ctx;
 };
-#endif
 
 struct	ipstat {
 	uint64_t ips_total;		/* total packets received */

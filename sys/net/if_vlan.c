@@ -153,7 +153,7 @@ struct ifvlantrunk {
 struct vlan_mc_entry {
 	struct sockaddr_dl		mc_addr;
 	CK_SLIST_ENTRY(vlan_mc_entry)	mc_entries;
-	struct epoch_context		mc_epoch_ctx;
+	epoch_context_t			mc_epoch_ctx;
 };
 
 struct	ifvlan {
@@ -318,7 +318,7 @@ VNET_DEFINE_STATIC(struct if_clone *, vlan_cloner);
 #define HASH(n, m)	((((n) >> 8) ^ ((n) >> 4) ^ (n)) & (m))
 
 static void
-vlan_mc_free(struct epoch_context *ctx)
+vlan_mc_free(epoch_context_t *ctx)
 {
 	struct vlan_mc_entry *mc = __containerof(ctx, struct vlan_mc_entry, mc_epoch_ctx);
 	free(mc, M_VLAN);

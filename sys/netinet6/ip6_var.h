@@ -123,7 +123,7 @@ struct ip6_moptions {
 	u_short	im6o_max_memberships;	/* max memberships this socket */
 	struct	in6_multi **im6o_membership;	/* group memberships */
 	struct	in6_mfilter *im6o_mfilters;	/* source filters */
-	struct	epoch_context imo6_epoch_ctx;
+	epoch_context_t imo6_epoch_ctx;
 };
 
 /*

@@ -380,7 +380,7 @@ struct ifnet {
 	 * Netdump hooks to be called while dumping.
 	 */
 	struct netdump_methods *if_netdump_methods;
-	struct epoch_context	if_epoch_ctx;
+	epoch_context_t		if_epoch_ctx;
 	struct epoch_tracker	if_addr_et;
 	struct epoch_tracker	if_maddr_et;
 
@@ -543,7 +543,7 @@ struct ifaddr {
 	counter_u64_t	ifa_opackets;	 
 	counter_u64_t	ifa_ibytes;
 	counter_u64_t	ifa_obytes;
-	struct	epoch_context	ifa_epoch_ctx;
+	epoch_context_t	ifa_epoch_ctx;
 };
 
 struct ifaddr *	ifa_alloc(size_t size, int flags);
@@ -564,7 +564,7 @@ struct ifmultiaddr {
 	int	ifma_flags;
 	void	*ifma_protospec;	/* protocol-specific state, if any */
 	struct	ifmultiaddr *ifma_llifma; /* pointer to ifma for ifma_lladdr */
-	struct	epoch_context	ifma_epoch_ctx;
+	epoch_context_t	ifma_epoch_ctx;
 };
 
 extern	struct rwlock ifnet_rwlock;
