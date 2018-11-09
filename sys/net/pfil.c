@@ -70,14 +70,14 @@ VNET_DEFINE(struct rmlock, pfil_lock);
 #define	PFIL_LOCK_DESTROY_REAL(l)	\
 	rm_destroy(l)
 #define	PFIL_LOCK_INIT(p)	do {			\
-	if ((p)->flags & PFIL_FLAG_PRIVATE_LOCK) {	\
+	if ((p)->ph_flags & PFIL_FLAG_PRIVATE_LOCK) {	\
 		PFIL_LOCK_INIT_REAL(&(p)->ph_lock, "private");	\
 		(p)->ph_plock = &(p)->ph_lock;		\
 	} else						\
 		(p)->ph_plock = &V_pfil_lock;		\
 } while (0)
 #define	PFIL_LOCK_DESTROY(p)	do {			\
-	if ((p)->flags & PFIL_FLAG_PRIVATE_LOCK)	\
+	if ((p)->ph_flags & PFIL_FLAG_PRIVATE_LOCK)	\
 		PFIL_LOCK_DESTROY_REAL((p)->ph_plock);	\
 } while (0)
 
@@ -210,8 +210,7 @@ pfil_head_register(struct pfil_head *ph)
 
 	PFIL_HEADLIST_LOCK();
 	LIST_FOREACH(lph, &V_pfil_head_list, ph_list) {
-		if (ph->ph_type == lph->ph_type &&
-		    ph->ph_un.phu_val == lph->ph_un.phu_val) {
+		if (strcmp(ph->ph_name, lph->ph_name) == 0) {
 			PFIL_HEADLIST_UNLOCK();
 			return (EEXIST);
 		}
@@ -250,13 +249,13 @@ pfil_head_unregister(struct pfil_head *ph)
  * pfil_head_get() returns the pfil_head for a given key/dlt.
  */
 struct pfil_head *
-pfil_head_get(int type, u_long val)
+pfil_head_get(const char *name)
 {
 	struct pfil_head *ph;
 
 	PFIL_HEADLIST_LOCK();
 	LIST_FOREACH(ph, &V_pfil_head_list, ph_list)
-		if (ph->ph_type == type && ph->ph_un.phu_val == val)
+		if (strcmp(name, ph->ph_name) == 0)
 			break;
 	PFIL_HEADLIST_UNLOCK();
 	return (ph);

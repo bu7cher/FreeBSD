@@ -94,10 +94,12 @@ __FBSDID("$FreeBSD$");
 #include <netinet/in_systm.h>
 #include <netinet/in_var.h>
 #include <netinet/ip.h>
+#include <netinet/ip_var.h>
 #include <netinet/tcp_var.h>
 
 #ifdef SIFTR_IPV6
 #include <netinet/ip6.h>
+#include <netinet/ip6_var.h>
 #include <netinet6/in6_pcb.h>
 #endif /* SIFTR_IPV6 */
 
@@ -1128,9 +1130,9 @@ siftr_pfil(int action)
 	VNET_LIST_RLOCK();
 	VNET_FOREACH(vnet_iter) {
 		CURVNET_SET(vnet_iter);
-		pfh_inet = pfil_head_get(PFIL_TYPE_AF, AF_INET);
+		pfh_inet = pfil_head_get(PFIL_INET_NAME);
 #ifdef SIFTR_IPV6
-		pfh_inet6 = pfil_head_get(PFIL_TYPE_AF, AF_INET6);
+		pfh_inet6 = pfil_head_get(PFIL_INET6_NAME);
 #endif
 
 		if (action == HOOK) {

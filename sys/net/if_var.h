@@ -97,6 +97,7 @@ CK_STAILQ_HEAD(ifgrouphead, ifg_group);
 #ifdef _KERNEL
 VNET_DECLARE(struct pfil_head, link_pfil_hook);	/* packet filter hooks */
 #define	V_link_pfil_hook	VNET(link_pfil_hook)
+#define	PFIL_ETHER_NAME		"ethernet"
 
 #define	HHOOK_IPSEC_INET	0
 #define	HHOOK_IPSEC_INET6	1

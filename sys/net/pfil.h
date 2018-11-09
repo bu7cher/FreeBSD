@@ -71,9 +71,6 @@ struct packet_filter_hook {
 
 typedef	TAILQ_HEAD(pfil_chain, packet_filter_hook) pfil_chain_t;
 
-#define	PFIL_TYPE_AF		1	/* key is AF_* type */
-#define	PFIL_TYPE_IFNET		2	/* key is ifnet pointer */
-
 #define	PFIL_FLAG_PRIVATE_LOCK	0x01	/* Personal lock instead of global */
 
 /*
@@ -83,29 +80,24 @@ typedef	TAILQ_HEAD(pfil_chain, packet_filter_hook) pfil_chain_t;
 struct pfil_head {
 	pfil_chain_t	 ph_in;
 	pfil_chain_t	 ph_out;
-	int		 ph_type;
 	int		 ph_nhooks;
-#if defined( __linux__ ) || defined( _WIN32 )
-	rwlock_t	 ph_mtx;
-#else
 	struct rmlock	*ph_plock;	/* Pointer to the used lock */
 	struct rmlock	 ph_lock;	/* Private lock storage */
-	int		 flags;
-#endif
-	union {
-		u_long	 phu_val;
-		void	*phu_ptr;
-	} ph_un;
-#define	ph_af		 ph_un.phu_val
-#define	ph_ifnet	 ph_un.phu_ptr
+	int		 ph_flags;
+	enum {
+		PFIL_TYPE_IP4,
+		PFIL_TYPE_IP6,
+		PFIL_TYPE_ETHERNET,
+	}		 ph_type;
 	LIST_ENTRY(pfil_head) ph_list;
+	char		ph_name[IFNAMSIZ];
 };
 
 VNET_DECLARE(struct rmlock, pfil_lock);
 #define	V_pfil_lock	VNET(pfil_lock)
 
 /* Public functions for pfil hook management by packet filters. */
-struct pfil_head *pfil_head_get(int, u_long);
+struct pfil_head *pfil_head_get(const char *name);
 int	pfil_add_hook_flags(pfil_func_flags_t, void *, int, struct pfil_head *);
 int	pfil_add_hook(pfil_func_t, void *, int, struct pfil_head *);
 int	pfil_remove_hook_flags(pfil_func_flags_t, void *, int, struct pfil_head *);

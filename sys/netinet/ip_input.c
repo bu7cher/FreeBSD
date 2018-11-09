@@ -57,11 +57,11 @@ __FBSDID("$FreeBSD$");
 #include <sys/syslog.h>
 #include <sys/sysctl.h>
 
-#include <net/pfil.h>
 #include <net/if.h>
 #include <net/if_types.h>
 #include <net/if_var.h>
 #include <net/if_dl.h>
+#include <net/pfil.h>
 #include <net/route.h>
 #include <net/netisr.h>
 #include <net/rss_config.h>
@@ -311,8 +311,7 @@ ip_init(void)
 	ipreass_init();
 
 	/* Initialize packet filter hooks. */
-	V_inet_pfil_hook.ph_type = PFIL_TYPE_AF;
-	V_inet_pfil_hook.ph_af = AF_INET;
+	sprintf(V_inet_pfil_hook.ph_name, PFIL_INET_NAME);
 	if ((i = pfil_head_register(&V_inet_pfil_hook)) != 0)
 		printf("%s: WARNING: unable to register pfil hook, "
 			"error %d\n", __func__, i);

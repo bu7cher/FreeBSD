@@ -1240,12 +1240,12 @@ int ipf_pfil_unhook(void) {
 	struct pfil_head *ph_inet6;
 #endif
 
-	ph_inet = pfil_head_get(PFIL_TYPE_AF, AF_INET);
+	ph_inet = pfil_head_get(PFIL_INET_NAME);
 	if (ph_inet != NULL)
 		pfil_remove_hook((void *)ipf_check_wrapper, NULL,
 		    PFIL_IN|PFIL_OUT|PFIL_WAITOK, ph_inet);
 #ifdef USE_INET6
-	ph_inet6 = pfil_head_get(PFIL_TYPE_AF, AF_INET6);
+	ph_inet6 = pfil_head_get(PFIL_INET6_NAME);
 	if (ph_inet6 != NULL)
 		pfil_remove_hook((void *)ipf_check_wrapper6, NULL,
 		    PFIL_IN|PFIL_OUT|PFIL_WAITOK, ph_inet6);
@@ -1260,9 +1260,9 @@ int ipf_pfil_hook(void) {
 	struct pfil_head *ph_inet6;
 #endif
 
-	ph_inet = pfil_head_get(PFIL_TYPE_AF, AF_INET);
+	ph_inet = pfil_head_get(PFIL_INET_NAME);
 #ifdef USE_INET6
-	ph_inet6 = pfil_head_get(PFIL_TYPE_AF, AF_INET6);
+	ph_inet6 = pfil_head_get(PFIL_INET6_NAME);
 #endif
 	if (ph_inet == NULL
 #ifdef USE_INET6

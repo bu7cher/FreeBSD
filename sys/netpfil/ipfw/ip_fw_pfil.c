@@ -48,6 +48,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/sysctl.h>
 
 #include <net/if.h>
+#include <net/if_var.h>
 #include <net/route.h>
 #include <net/ethernet.h>
 #include <net/pfil.h>
@@ -514,12 +515,26 @@ ipfw_hook(int onoff, int pf)
 {
 	struct pfil_head *pfh;
 	pfil_func_t hook_func;
+	const char *name;
 
-	pfh = pfil_head_get(PFIL_TYPE_AF, pf);
+	switch (pf) {
+	case AF_INET:
+		name = PFIL_INET_NAME;
+		hook_func = ipfw_check_packet;
+		break;
+	case AF_INET6:
+		name = PFIL_INET6_NAME;
+		hook_func = ipfw_check_packet;
+		break;
+	case AF_LINK:
+		name = PFIL_ETHER_NAME;
+		hook_func = ipfw_check_frame;
+		break;
+	}
+
+	pfh = pfil_head_get(name);
 	if (pfh == NULL)
 		return ENOENT;
-
-	hook_func = (pf == AF_LINK) ? ipfw_check_frame : ipfw_check_packet;
 
 	(void) (onoff ? pfil_add_hook : pfil_remove_hook)
 	    (hook_func, NULL, PFIL_IN | PFIL_OUT | PFIL_WAITOK, pfh);
