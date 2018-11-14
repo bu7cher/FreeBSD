@@ -34,13 +34,30 @@
 #ifndef _NET_PFIL_H_
 #define _NET_PFIL_H_
 
-#include <sys/systm.h>
-#include <sys/queue.h>
-#include <sys/_lock.h>
-#include <sys/_mutex.h>
-#include <sys/lock.h>
-#include <sys/rmlock.h>
+#include <sys/ioccom.h>
 
+enum pfil_types {
+	PFIL_TYPE_IP4,
+	PFIL_TYPE_IP6,
+	PFIL_TYPE_ETHERNET,
+};
+
+struct pfilioc_head {
+	char		ph_name[IFNAMSIZ];
+	int		ph_nhooksin;
+	int		ph_nhooksout;
+	enum pfil_types	ph_type;
+};
+
+struct pfilioc_listheads {
+	int			 plh_nheads;
+	struct pfilioc_head	*plh_heads;
+};
+
+#define	PFILDEV			"pfil"
+#define	PFILIOC_LISTHEADS	_IOWR('P', 1, struct pfilioc_listheads)
+
+#ifdef _KERNEL
 struct mbuf;
 struct ifnet;
 struct inpcb;
@@ -83,11 +100,7 @@ struct pfil_head {
 	struct rmlock	*ph_plock;	/* Pointer to the used lock */
 	struct rmlock	 ph_lock;	/* Private lock storage */
 	int		 ph_flags;
-	enum {
-		PFIL_TYPE_IP4,
-		PFIL_TYPE_IP6,
-		PFIL_TYPE_ETHERNET,
-	}		 ph_type;
+	enum pfil_types	 ph_type;
 	LIST_ENTRY(pfil_head) ph_list;
 	char		ph_name[IFNAMSIZ];
 };
@@ -116,4 +129,5 @@ void	pfil_wlock(struct pfil_head *);
 void	pfil_wunlock(struct pfil_head *);
 int	pfil_wowned(struct pfil_head *ph);
 
+#endif /* _KERNEL */
 #endif /* _NET_PFIL_H_ */

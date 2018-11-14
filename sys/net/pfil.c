@@ -32,6 +32,7 @@
  */
 
 #include <sys/param.h>
+#include <sys/conf.h>
 #include <sys/kernel.h>
 #include <sys/errno.h>
 #include <sys/lock.h>
@@ -49,6 +50,14 @@
 #include <net/if.h>
 #include <net/if_var.h>
 #include <net/pfil.h>
+
+static int pfil_ioctl(struct cdev *, u_long, caddr_t, int, struct thread *);
+static struct cdevsw pfil_cdevsw = {
+	.d_ioctl =	pfil_ioctl,
+	.d_name =	PFILDEV,
+	.d_version =	D_VERSION,
+};
+static struct cdev *pfil_dev;
 
 static struct mtx pfil_global_lock;
 
@@ -438,9 +447,19 @@ pfil_chain_remove(pfil_chain_t *chain, void *func, void *arg)
 static void
 vnet_pfil_init(const void *unused __unused)
 {
+	struct make_dev_args args;
+	int error;
 
 	LIST_INIT(&V_pfil_head_list);
 	PFIL_LOCK_INIT_REAL(&V_pfil_lock, "shared");
+	make_dev_args_init(&args);
+	args.mda_flags = MAKEDEV_WAITOK | MAKEDEV_CHECKNAME;
+	args.mda_devsw = &pfil_cdevsw;
+	args.mda_uid = UID_ROOT;
+	args.mda_gid = GID_WHEEL;
+	args.mda_mode = 0600;
+	error = make_dev_s(&args, &pfil_dev, PFILDEV);
+	KASSERT(error == 0, ("%s: failed to create dev: %d", __func__, error));
 }
 
 /*
@@ -453,6 +472,49 @@ vnet_pfil_uninit(const void *unused __unused)
 	KASSERT(LIST_EMPTY(&V_pfil_head_list),
 	    ("%s: pfil_head_list %p not empty", __func__, &V_pfil_head_list));
 	PFIL_LOCK_DESTROY_REAL(&V_pfil_lock);
+}
+
+/*
+ * User control interface.
+ */
+static int
+pfil_ioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flags,
+    struct thread *td)
+{
+	int error;
+
+	error = 0;
+	switch (cmd) {
+	case PFILIOC_LISTHEADS: {
+		struct pfilioc_listheads *req = (struct pfilioc_listheads *)addr;
+		struct pfilioc_head ioch;
+		struct pfil_head *ph;
+		int nheads;
+
+		nheads = 0;
+		PFIL_HEADLIST_LOCK();
+		LIST_FOREACH(ph, &V_pfil_head_list, ph_list) {
+			if (++nheads > req->plh_nheads)
+				continue;
+			bcopy(ph->ph_name, ioch.ph_name, sizeof(ioch.ph_name));
+			ioch.ph_nhooksin = ph->ph_nhooks;
+			ioch.ph_nhooksout = ph->ph_nhooks;
+			ioch.ph_type = ph->ph_type;
+			error = copyout(&ioch, &req->plh_heads[nheads - 1],
+			    sizeof(ioch));
+			if (error != 0)
+				break;
+		}
+		PFIL_HEADLIST_UNLOCK();
+		req->plh_nheads = nheads;
+
+		break;
+	}
+	default:
+		return (EINVAL);
+	}
+
+	return (error);
 }
 
 /*
