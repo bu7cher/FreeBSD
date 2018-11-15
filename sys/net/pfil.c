@@ -197,7 +197,6 @@ pfil_head_get(const char *name)
  *	PFIL_IN		call me on incoming packets
  *	PFIL_OUT	call me on outgoing packets
  *	PFIL_ALL	call me on all of the above
- *	PFIL_WAITOK	OK to call malloc with M_WAITOK.
  */
 int
 pfil_add_hook_flags(pfil_func_flags_t func, void *arg, int flags,
@@ -212,7 +211,6 @@ pfil_add_hook_flags(pfil_func_flags_t func, void *arg, int flags,
  *	PFIL_IN		call me on incoming packets
  *	PFIL_OUT	call me on outgoing packets
  *	PFIL_ALL	call me on all of the above
- *	PFIL_WAITOK	OK to call malloc with M_WAITOK.
  */
 int
 pfil_add_hook(pfil_func_t func, void *arg, int flags, struct pfil_head *ph)
@@ -229,22 +227,10 @@ pfil_add_hook_priv(void *func, void *arg, int flags,
 	struct packet_filter_hook *old = NULL;
 	int err;
 
-	if (flags & PFIL_IN) {
-		pfh1 = (struct packet_filter_hook *)malloc(sizeof(*pfh1), 
-		    M_IFADDR, (flags & PFIL_WAITOK) ? M_WAITOK : M_NOWAIT);
-		if (pfh1 == NULL) {
-			err = ENOMEM;
-			goto error;
-		}
-	}
-	if (flags & PFIL_OUT) {
-		pfh2 = (struct packet_filter_hook *)malloc(sizeof(*pfh1),
-		    M_IFADDR, (flags & PFIL_WAITOK) ? M_WAITOK : M_NOWAIT);
-		if (pfh2 == NULL) {
-			err = ENOMEM;
-			goto error;
-		}
-	}
+	if (flags & PFIL_IN)
+		pfh1 = malloc(sizeof(*pfh1), M_IFADDR, M_WAITOK);
+	if (flags & PFIL_OUT)
+		pfh2 = malloc(sizeof(*pfh1), M_IFADDR, M_WAITOK);
 	PFIL_LOCK();
 	if (flags & PFIL_IN) {
 		pfh1->pfil_func_flags = hasflags ? func : NULL;
@@ -268,11 +254,11 @@ pfil_add_hook_priv(void *func, void *arg, int flags,
 		ph->ph_nhooks++;
 	}
 	PFIL_UNLOCK();
+
 	return (0);
 
 locked_error:
 	PFIL_UNLOCK();
-error:
 	if (pfh1 != NULL)
 		free(pfh1, M_IFADDR);
 	if (pfh2 != NULL)

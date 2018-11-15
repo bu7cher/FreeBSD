@@ -537,7 +537,7 @@ ipfw_hook(int onoff, int pf)
 		return ENOENT;
 
 	(void) (onoff ? pfil_add_hook : pfil_remove_hook)
-	    (hook_func, NULL, PFIL_IN | PFIL_OUT | PFIL_WAITOK, pfh);
+	    (hook_func, NULL, PFIL_IN | PFIL_OUT, pfh);
 
 	return 0;
 }

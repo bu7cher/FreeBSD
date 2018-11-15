@@ -1137,17 +1137,17 @@ siftr_pfil(int action)
 
 		if (action == HOOK) {
 			pfil_add_hook(siftr_chkpkt, NULL,
-			    PFIL_IN | PFIL_OUT | PFIL_WAITOK, pfh_inet);
+			    PFIL_IN | PFIL_OUT, pfh_inet);
 #ifdef SIFTR_IPV6
 			pfil_add_hook(siftr_chkpkt6, NULL,
-			    PFIL_IN | PFIL_OUT | PFIL_WAITOK, pfh_inet6);
+			    PFIL_IN | PFIL_OUT, pfh_inet6);
 #endif
 		} else if (action == UNHOOK) {
 			pfil_remove_hook(siftr_chkpkt, NULL,
-			    PFIL_IN | PFIL_OUT | PFIL_WAITOK, pfh_inet);
+			    PFIL_IN | PFIL_OUT, pfh_inet);
 #ifdef SIFTR_IPV6
 			pfil_remove_hook(siftr_chkpkt6, NULL,
-			    PFIL_IN | PFIL_OUT | PFIL_WAITOK, pfh_inet6);
+			    PFIL_IN | PFIL_OUT, pfh_inet6);
 #endif
 		}
 		CURVNET_RESTORE();

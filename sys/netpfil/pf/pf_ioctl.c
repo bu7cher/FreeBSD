@@ -4100,22 +4100,20 @@ hook_pf(void)
 	pfh_inet = pfil_head_get(PFIL_INET_NAME);
 	if (pfh_inet == NULL)
 		return (ESRCH); /* XXX */
-	pfil_add_hook_flags(pf_check_in, NULL, PFIL_IN | PFIL_WAITOK, pfh_inet);
-	pfil_add_hook_flags(pf_check_out, NULL, PFIL_OUT | PFIL_WAITOK, pfh_inet);
+	pfil_add_hook_flags(pf_check_in, NULL, PFIL_IN, pfh_inet);
+	pfil_add_hook_flags(pf_check_out, NULL, PFIL_OUT, pfh_inet);
 #endif
 #ifdef INET6
 	pfh_inet6 = pfil_head_get(PFIL_INET6_NAME);
 	if (pfh_inet6 == NULL) {
 #ifdef INET
-		pfil_remove_hook_flags(pf_check_in, NULL, PFIL_IN | PFIL_WAITOK,
-		    pfh_inet);
-		pfil_remove_hook_flags(pf_check_out, NULL, PFIL_OUT | PFIL_WAITOK,
-		    pfh_inet);
+		pfil_remove_hook_flags(pf_check_in, NULL, PFIL_IN, pfh_inet);
+		pfil_remove_hook_flags(pf_check_out, NULL, PFIL_OUT, pfh_inet);
 #endif
 		return (ESRCH); /* XXX */
 	}
-	pfil_add_hook_flags(pf_check6_in, NULL, PFIL_IN | PFIL_WAITOK, pfh_inet6);
-	pfil_add_hook_flags(pf_check6_out, NULL, PFIL_OUT | PFIL_WAITOK, pfh_inet6);
+	pfil_add_hook_flags(pf_check6_in, NULL, PFIL_IN, pfh_inet6);
+	pfil_add_hook_flags(pf_check6_out, NULL, PFIL_OUT, pfh_inet6);
 #endif
 
 	V_pf_pfil_hooked = 1;
@@ -4139,19 +4137,15 @@ dehook_pf(void)
 	pfh_inet = pfil_head_get(PFIL_INET_NAME);
 	if (pfh_inet == NULL)
 		return (ESRCH); /* XXX */
-	pfil_remove_hook_flags(pf_check_in, NULL, PFIL_IN | PFIL_WAITOK,
-	    pfh_inet);
-	pfil_remove_hook_flags(pf_check_out, NULL, PFIL_OUT | PFIL_WAITOK,
-	    pfh_inet);
+	pfil_remove_hook_flags(pf_check_in, NULL, PFIL_IN, pfh_inet);
+	pfil_remove_hook_flags(pf_check_out, NULL, PFIL_OUT, pfh_inet);
 #endif
 #ifdef INET6
 	pfh_inet6 = pfil_head_get(PFIL_INET6_NAME);
 	if (pfh_inet6 == NULL)
 		return (ESRCH); /* XXX */
-	pfil_remove_hook_flags(pf_check6_in, NULL, PFIL_IN | PFIL_WAITOK,
-	    pfh_inet6);
-	pfil_remove_hook_flags(pf_check6_out, NULL, PFIL_OUT | PFIL_WAITOK,
-	    pfh_inet6);
+	pfil_remove_hook_flags(pf_check6_in, NULL, PFIL_IN, pfh_inet6);
+	pfil_remove_hook_flags(pf_check6_out, NULL, PFIL_OUT, pfh_inet6);
 #endif
 
 	V_pf_pfil_hooked = 0;

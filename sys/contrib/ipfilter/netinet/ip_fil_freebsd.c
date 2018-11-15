@@ -1243,12 +1243,12 @@ int ipf_pfil_unhook(void) {
 	ph_inet = pfil_head_get(PFIL_INET_NAME);
 	if (ph_inet != NULL)
 		pfil_remove_hook((void *)ipf_check_wrapper, NULL,
-		    PFIL_IN|PFIL_OUT|PFIL_WAITOK, ph_inet);
+		    PFIL_IN | PFIL_OUT, ph_inet);
 #ifdef USE_INET6
 	ph_inet6 = pfil_head_get(PFIL_INET6_NAME);
 	if (ph_inet6 != NULL)
 		pfil_remove_hook((void *)ipf_check_wrapper6, NULL,
-		    PFIL_IN|PFIL_OUT|PFIL_WAITOK, ph_inet6);
+		    PFIL_IN | PFIL_OUT, ph_inet6);
 #endif
 
 	return (0);
@@ -1274,11 +1274,11 @@ int ipf_pfil_hook(void) {
 
 	if (ph_inet != NULL)
 		pfil_add_hook((void *)ipf_check_wrapper, NULL,
-		    PFIL_IN|PFIL_OUT|PFIL_WAITOK, ph_inet);
+		    PFIL_IN | PFIL_OUT, ph_inet);
 #ifdef USE_INET6
 	if (ph_inet6 != NULL)
 		pfil_add_hook((void *)ipf_check_wrapper6, NULL,
-				      PFIL_IN|PFIL_OUT|PFIL_WAITOK, ph_inet6);
+		    PFIL_IN | PFIL_OUT, ph_inet6);
 #endif
 	return (0);
 }

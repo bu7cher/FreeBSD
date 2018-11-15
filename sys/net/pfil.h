@@ -86,7 +86,6 @@ typedef	CK_STAILQ_HEAD(pfil_chain, packet_filter_hook) pfil_chain_t;
 
 #define PFIL_IN		0x00000001
 #define PFIL_OUT	0x00000002
-#define PFIL_WAITOK	0x00000004
 #define PFIL_FWD	0x00000008
 #define PFIL_ALL	(PFIL_IN|PFIL_OUT)
 
