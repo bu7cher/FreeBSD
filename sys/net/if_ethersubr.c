@@ -741,6 +741,8 @@ vnet_ether_init(__unused void *arg)
 
 	/* Initialize packet filter hooks. */
 	sprintf(V_link_pfil_hook.ph_name, "%s", PFIL_ETHER_NAME);
+        V_link_pfil_hook.ph_type = PFIL_TYPE_ETHERNET;
+        V_link_pfil_hook.ph_flags = PFIL_IN | PFIL_OUT;
 	if ((i = pfil_head_register(&V_link_pfil_hook)) != 0)
 		printf("%s: WARNING: unable to register pfil link hook, "
 			"error %d\n", __func__, i);

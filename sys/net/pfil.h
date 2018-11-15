@@ -59,7 +59,6 @@ struct pfilioc_listheads {
 
 #ifdef _KERNEL
 #include <sys/ck.h>
-#include <sys/epoch.h>
 
 struct mbuf;
 struct ifnet;
@@ -67,18 +66,6 @@ struct inpcb;
 
 typedef	int	(*pfil_func_t)(struct mbuf **, struct ifnet *, int,
 		    struct inpcb *);
-
-/*
- * The packet filter hooks are designed for anything to call them to
- * possibly intercept the packet.  Multiple filter hooks are chained
- * together and after each other in the specified order.
- */
-struct packet_filter_hook {
-	CK_STAILQ_ENTRY(packet_filter_hook) pfil_chain;
-	pfil_func_t		 pfil_func;
-	struct epoch_context	 pfil_epoch_ctx;
-};
-typedef	CK_STAILQ_HEAD(pfil_chain, packet_filter_hook) pfil_chain_t;
 
 #define PFIL_IN		0x00000001
 #define PFIL_OUT	0x00000002
@@ -89,6 +76,8 @@ typedef	CK_STAILQ_HEAD(pfil_chain, packet_filter_hook) pfil_chain_t;
  * A pfil head is created by each protocol or packet intercept point.
  * For packet is then run through the hook chain for inspection.
  */
+struct pfil_hook;
+typedef CK_STAILQ_HEAD(pfil_chain, pfil_hook)	pfil_chain_t;
 struct pfil_head {
 	pfil_chain_t	 ph_in;
 	pfil_chain_t	 ph_out;

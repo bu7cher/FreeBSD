@@ -74,8 +74,14 @@ VNET_DEFINE_STATIC(struct pfilheadhead, pfil_head_list);
 #define	PFIL_EPOCH_ENTER(et)	epoch_enter_preempt(net_epoch_preempt, &(et))
 #define	PFIL_EPOCH_EXIT(et)	epoch_exit_preempt(net_epoch_preempt, &(et))
 
-static int pfil_chain_add(pfil_chain_t *, struct packet_filter_hook *, int);
-static struct packet_filter_hook *pfil_chain_remove(pfil_chain_t *, pfil_func_t );
+struct pfil_hook {
+	CK_STAILQ_ENTRY(pfil_hook) pfil_chain;
+	pfil_func_t		 pfil_func;
+	struct epoch_context	 pfil_epoch_ctx;
+};
+
+static int pfil_chain_add(pfil_chain_t *, struct pfil_hook *, int);
+static struct pfil_hook *pfil_chain_remove(pfil_chain_t *, pfil_func_t );
 static void pfil_chain_free(epoch_context_t);
 
 /*
@@ -87,7 +93,7 @@ pfil_run_hooks(struct pfil_head *ph, struct mbuf **mp, struct ifnet *ifp,
 {
 	struct epoch_tracker et;
 	pfil_chain_t *pch;
-	struct packet_filter_hook *pfh;
+	struct pfil_hook *pfh;
 	struct mbuf *m = *mp;
 	int rv = 0;
 
@@ -142,7 +148,7 @@ pfil_head_register(struct pfil_head *ph)
 int
 pfil_head_unregister(struct pfil_head *ph)
 {
-	struct packet_filter_hook *pfh, *pfnext;
+	struct pfil_hook *pfh, *pfnext;
 		
 	PFIL_LOCK();
 	LIST_REMOVE(ph, ph_list);
@@ -182,9 +188,9 @@ pfil_head_get(const char *name)
 int
 pfil_add_hook(pfil_func_t func, int flags, struct pfil_head *ph)
 {
-	struct packet_filter_hook *pfh1 = NULL;
-	struct packet_filter_hook *pfh2 = NULL;
-	struct packet_filter_hook *old = NULL;
+	struct pfil_hook *pfh1 = NULL;
+	struct pfil_hook *pfh2 = NULL;
+	struct pfil_hook *old = NULL;
 	int err;
 
 	MPASS(func);
@@ -229,9 +235,9 @@ locked_error:
 static void
 pfil_chain_free(epoch_context_t ctx)
 {
-	struct packet_filter_hook *pfh;
+	struct pfil_hook *pfh;
 
-	pfh = __containerof(ctx, struct packet_filter_hook, pfil_epoch_ctx);
+	pfh = __containerof(ctx, struct pfil_hook, pfil_epoch_ctx);
 	free(pfh, M_PFIL);
 }
 
@@ -242,7 +248,7 @@ pfil_chain_free(epoch_context_t ctx)
 int
 pfil_remove_hook(pfil_func_t func, int flags, struct pfil_head *ph)
 {
-	struct packet_filter_hook *in, *out;
+	struct pfil_hook *in, *out;
 
 	PFIL_LOCK();
 	if (flags & PFIL_IN) {
@@ -271,9 +277,9 @@ pfil_remove_hook(pfil_func_t func, int flags, struct pfil_head *ph)
  * Internal: Add a new pfil hook into a hook chain.
  */
 static int
-pfil_chain_add(pfil_chain_t *chain, struct packet_filter_hook *pfh1, int flags)
+pfil_chain_add(pfil_chain_t *chain, struct pfil_hook *pfh1, int flags)
 {
-	struct packet_filter_hook *pfh;
+	struct pfil_hook *pfh;
 
 	PFIL_LOCK_ASSERT();
 
@@ -299,16 +305,16 @@ pfil_chain_add(pfil_chain_t *chain, struct packet_filter_hook *pfh1, int flags)
 /*
  * Internal: Remove a pfil hook from a hook chain.
  */
-static struct packet_filter_hook *
+static struct pfil_hook *
 pfil_chain_remove(pfil_chain_t *chain, pfil_func_t func)
 {
-	struct packet_filter_hook *pfh;
+	struct pfil_hook *pfh;
 
 	PFIL_LOCK_ASSERT();
 
 	CK_STAILQ_FOREACH(pfh, chain, pfil_chain)
 		if (pfh->pfil_func == func) {
-			CK_STAILQ_REMOVE(chain, pfh, packet_filter_hook,
+			CK_STAILQ_REMOVE(chain, pfh, pfil_hook,
 			    pfil_chain);
 			return (pfh);
 		}
