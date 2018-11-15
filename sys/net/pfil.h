@@ -58,6 +58,9 @@ struct pfilioc_listheads {
 #define	PFILIOC_LISTHEADS	_IOWR('P', 1, struct pfilioc_listheads)
 
 #ifdef _KERNEL
+#include <sys/ck.h>
+#include <sys/epoch.h>
+
 struct mbuf;
 struct ifnet;
 struct inpcb;
@@ -73,21 +76,19 @@ typedef	int	(*pfil_func_flags_t)(void *, struct mbuf **, struct ifnet *,
  * together and after each other in the specified order.
  */
 struct packet_filter_hook {
-	TAILQ_ENTRY(packet_filter_hook) pfil_chain;
+	CK_STAILQ_ENTRY(packet_filter_hook) pfil_chain;
 	pfil_func_t		 pfil_func;
 	pfil_func_flags_t	 pfil_func_flags;
 	void			*pfil_arg;
+	struct epoch_context	 pfil_epoch_ctx;
 };
+typedef	CK_STAILQ_HEAD(pfil_chain, packet_filter_hook) pfil_chain_t;
 
 #define PFIL_IN		0x00000001
 #define PFIL_OUT	0x00000002
 #define PFIL_WAITOK	0x00000004
 #define PFIL_FWD	0x00000008
 #define PFIL_ALL	(PFIL_IN|PFIL_OUT)
-
-typedef	TAILQ_HEAD(pfil_chain, packet_filter_hook) pfil_chain_t;
-
-#define	PFIL_FLAG_PRIVATE_LOCK	0x01	/* Personal lock instead of global */
 
 /*
  * A pfil head is created by each protocol or packet intercept point.
@@ -97,8 +98,6 @@ struct pfil_head {
 	pfil_chain_t	 ph_in;
 	pfil_chain_t	 ph_out;
 	int		 ph_nhooks;
-	struct rmlock	*ph_plock;	/* Pointer to the used lock */
-	struct rmlock	 ph_lock;	/* Private lock storage */
 	int		 ph_flags;
 	enum pfil_types	 ph_type;
 	LIST_ENTRY(pfil_head) ph_list;
@@ -120,14 +119,6 @@ int	pfil_run_hooks(struct pfil_head *, struct mbuf **, struct ifnet *, int,
 /* Public functions for pfil head management by protocols. */
 int	pfil_head_register(struct pfil_head *);
 int	pfil_head_unregister(struct pfil_head *);
-
-/* Public pfil locking functions for self managed locks by packet filters. */
-int	pfil_try_rlock(struct pfil_head *, struct rm_priotracker *);
-void	pfil_rlock(struct pfil_head *, struct rm_priotracker *);
-void	pfil_runlock(struct pfil_head *, struct rm_priotracker *);
-void	pfil_wlock(struct pfil_head *);
-void	pfil_wunlock(struct pfil_head *);
-int	pfil_wowned(struct pfil_head *ph);
 
 #endif /* _KERNEL */
 #endif /* _NET_PFIL_H_ */
