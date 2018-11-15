@@ -50,6 +50,8 @@
 #include <net/if_var.h>
 #include <net/pfil.h>
 
+static MALLOC_DEFINE(M_PFIL, "pfil", "pfil(9) packet filter hooks");
+
 static int pfil_ioctl(struct cdev *, u_long, caddr_t, int, struct thread *);
 static struct cdevsw pfil_cdevsw = {
 	.d_ioctl =	pfil_ioctl,
@@ -167,9 +169,9 @@ pfil_head_unregister(struct pfil_head *ph)
 	PFIL_UNLOCK();
 
 	CK_STAILQ_FOREACH_SAFE(pfh, &ph->ph_in, pfil_chain, pfnext)
-		free(pfh, M_IFADDR);
+		free(pfh, M_PFIL);
 	CK_STAILQ_FOREACH_SAFE(pfh, &ph->ph_out, pfil_chain, pfnext)
-		free(pfh, M_IFADDR);
+		free(pfh, M_PFIL);
 
 	return (0);
 }
@@ -228,9 +230,9 @@ pfil_add_hook_priv(void *func, void *arg, int flags,
 	int err;
 
 	if (flags & PFIL_IN)
-		pfh1 = malloc(sizeof(*pfh1), M_IFADDR, M_WAITOK);
+		pfh1 = malloc(sizeof(*pfh1), M_PFIL, M_WAITOK);
 	if (flags & PFIL_OUT)
-		pfh2 = malloc(sizeof(*pfh1), M_IFADDR, M_WAITOK);
+		pfh2 = malloc(sizeof(*pfh1), M_PFIL, M_WAITOK);
 	PFIL_LOCK();
 	if (flags & PFIL_IN) {
 		pfh1->pfil_func_flags = hasflags ? func : NULL;
@@ -260,9 +262,9 @@ pfil_add_hook_priv(void *func, void *arg, int flags,
 locked_error:
 	PFIL_UNLOCK();
 	if (pfh1 != NULL)
-		free(pfh1, M_IFADDR);
+		free(pfh1, M_PFIL);
 	if (pfh2 != NULL)
-		free(pfh2, M_IFADDR);
+		free(pfh2, M_PFIL);
 	if (old != NULL)
 		epoch_call(PFIL_EPOCH, &old->pfil_epoch_ctx, pfil_chain_free);
 	return (err);
@@ -274,7 +276,7 @@ pfil_chain_free(epoch_context_t ctx)
 	struct packet_filter_hook *pfh;
 
 	pfh = __containerof(ctx, struct packet_filter_hook, pfil_epoch_ctx);
-	free(pfh, M_IFADDR);
+	free(pfh, M_PFIL);
 }
 
 /*
