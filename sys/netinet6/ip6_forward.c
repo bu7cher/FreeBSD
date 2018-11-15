@@ -325,7 +325,7 @@ again2:
 
 	odst = ip6->ip6_dst;
 	/* Run through list of hooks for forwarded packets. */
-	error = pfil_run_hooks(&V_inet6_pfil_hook, &m, rt->rt_ifp, PFIL_OUT,
+	error = pfil_run_hooks(&V_inet6_pfil_hook, &m, rt->rt_ifp, PFIL_OUT |
 	    PFIL_FWD, NULL);
 	if (error != 0 || m == NULL)
 		goto freecopy;		/* consumed by filter */

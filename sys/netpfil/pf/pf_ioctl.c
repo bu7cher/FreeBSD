@@ -169,16 +169,16 @@ static void		 pf_tbladdr_copyout(struct pf_addr_wrap *);
  * Wrapper functions for pfil(9) hooks
  */
 #ifdef INET
-static int pf_check_in(void *arg, struct mbuf **m, struct ifnet *ifp,
-    int dir, int flags, struct inpcb *inp);
-static int pf_check_out(void *arg, struct mbuf **m, struct ifnet *ifp,
-    int dir, int flags, struct inpcb *inp);
+static int pf_check_in(struct mbuf **m, struct ifnet *ifp, int flags,
+    struct inpcb *inp);
+static int pf_check_out(struct mbuf **m, struct ifnet *ifp, int flags,
+    struct inpcb *inp);
 #endif
 #ifdef INET6
-static int pf_check6_in(void *arg, struct mbuf **m, struct ifnet *ifp,
-    int dir, int flags, struct inpcb *inp);
-static int pf_check6_out(void *arg, struct mbuf **m, struct ifnet *ifp,
-    int dir, int flags, struct inpcb *inp);
+static int pf_check6_in(struct mbuf **m, struct ifnet *ifp, int flags,
+    struct inpcb *inp);
+static int pf_check6_out(struct mbuf **m, struct ifnet *ifp, int flags,
+    struct inpcb *inp);
 #endif
 
 static int		hook_pf(void);
@@ -4006,8 +4006,7 @@ shutdown_pf(void)
 
 #ifdef INET
 static int
-pf_check_in(void *arg, struct mbuf **m, struct ifnet *ifp, int dir, int flags,
-    struct inpcb *inp)
+pf_check_in(struct mbuf **m, struct ifnet *ifp, int flags, struct inpcb *inp)
 {
 	int chk;
 
@@ -4023,8 +4022,7 @@ pf_check_in(void *arg, struct mbuf **m, struct ifnet *ifp, int dir, int flags,
 }
 
 static int
-pf_check_out(void *arg, struct mbuf **m, struct ifnet *ifp, int dir, int flags,
-    struct inpcb *inp)
+pf_check_out(struct mbuf **m, struct ifnet *ifp, int flags, struct inpcb *inp)
 {
 	int chk;
 
@@ -4042,8 +4040,7 @@ pf_check_out(void *arg, struct mbuf **m, struct ifnet *ifp, int dir, int flags,
 
 #ifdef INET6
 static int
-pf_check6_in(void *arg, struct mbuf **m, struct ifnet *ifp, int dir, int flags,
-    struct inpcb *inp)
+pf_check6_in(struct mbuf **m, struct ifnet *ifp, int flags, struct inpcb *inp)
 {
 	int chk;
 
@@ -4065,8 +4062,7 @@ pf_check6_in(void *arg, struct mbuf **m, struct ifnet *ifp, int dir, int flags,
 }
 
 static int
-pf_check6_out(void *arg, struct mbuf **m, struct ifnet *ifp, int dir, int flags,
-    struct inpcb *inp)
+pf_check6_out(struct mbuf **m, struct ifnet *ifp, int flags, struct inpcb *inp)
 {
 	int chk;
 
@@ -4100,20 +4096,20 @@ hook_pf(void)
 	pfh_inet = pfil_head_get(PFIL_INET_NAME);
 	if (pfh_inet == NULL)
 		return (ESRCH); /* XXX */
-	pfil_add_hook_flags(pf_check_in, NULL, PFIL_IN, pfh_inet);
-	pfil_add_hook_flags(pf_check_out, NULL, PFIL_OUT, pfh_inet);
+	pfil_add_hook(pf_check_in, PFIL_IN, pfh_inet);
+	pfil_add_hook(pf_check_out, PFIL_OUT, pfh_inet);
 #endif
 #ifdef INET6
 	pfh_inet6 = pfil_head_get(PFIL_INET6_NAME);
 	if (pfh_inet6 == NULL) {
 #ifdef INET
-		pfil_remove_hook_flags(pf_check_in, NULL, PFIL_IN, pfh_inet);
-		pfil_remove_hook_flags(pf_check_out, NULL, PFIL_OUT, pfh_inet);
+		pfil_remove_hook(pf_check_in, PFIL_IN, pfh_inet);
+		pfil_remove_hook(pf_check_out, PFIL_OUT, pfh_inet);
 #endif
 		return (ESRCH); /* XXX */
 	}
-	pfil_add_hook_flags(pf_check6_in, NULL, PFIL_IN, pfh_inet6);
-	pfil_add_hook_flags(pf_check6_out, NULL, PFIL_OUT, pfh_inet6);
+	pfil_add_hook(pf_check6_in, PFIL_IN, pfh_inet6);
+	pfil_add_hook(pf_check6_out, PFIL_OUT, pfh_inet6);
 #endif
 
 	V_pf_pfil_hooked = 1;
@@ -4137,15 +4133,15 @@ dehook_pf(void)
 	pfh_inet = pfil_head_get(PFIL_INET_NAME);
 	if (pfh_inet == NULL)
 		return (ESRCH); /* XXX */
-	pfil_remove_hook_flags(pf_check_in, NULL, PFIL_IN, pfh_inet);
-	pfil_remove_hook_flags(pf_check_out, NULL, PFIL_OUT, pfh_inet);
+	pfil_remove_hook(pf_check_in, PFIL_IN, pfh_inet);
+	pfil_remove_hook(pf_check_out, PFIL_OUT, pfh_inet);
 #endif
 #ifdef INET6
 	pfh_inet6 = pfil_head_get(PFIL_INET6_NAME);
 	if (pfh_inet6 == NULL)
 		return (ESRCH); /* XXX */
-	pfil_remove_hook_flags(pf_check6_in, NULL, PFIL_IN, pfh_inet6);
-	pfil_remove_hook_flags(pf_check6_out, NULL, PFIL_OUT, pfh_inet6);
+	pfil_remove_hook(pf_check6_in, PFIL_IN, pfh_inet6);
+	pfil_remove_hook(pf_check6_out, PFIL_OUT, pfh_inet6);
 #endif
 
 	V_pf_pfil_hooked = 0;

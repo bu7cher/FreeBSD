@@ -158,8 +158,8 @@ ip6_tryforward(struct mbuf *m)
 	 */
 	if (!PFIL_HOOKED(&V_inet6_pfil_hook))
 		goto passin;
-	if (pfil_run_hooks(&V_inet6_pfil_hook, &m, rcvif, PFIL_IN, 0,
-	    NULL) != 0 || m == NULL)
+	if (pfil_run_hooks(&V_inet6_pfil_hook, &m, rcvif, PFIL_IN, NULL) != 0
+	    || m == NULL)
 		goto dropin;
 	/*
 	 * If packet filter sets the M_FASTFWD_OURS flag, this means
@@ -208,7 +208,7 @@ passin:
 	/*
 	 * Outgoing packet firewall processing.
 	 */
-	if (pfil_run_hooks(&V_inet6_pfil_hook, &m, nh.nh_ifp, PFIL_OUT,
+	if (pfil_run_hooks(&V_inet6_pfil_hook, &m, nh.nh_ifp, PFIL_OUT |
 	    PFIL_FWD, NULL) != 0 || m == NULL)
 		goto dropout;
 

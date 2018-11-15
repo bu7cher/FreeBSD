@@ -86,10 +86,6 @@ int ipfw_chg_hook(SYSCTL_HANDLER_ARGS);
 
 /* Forward declarations. */
 static int ipfw_divert(struct mbuf **, int, struct ipfw_rule_ref *, int);
-int ipfw_check_packet(void *, struct mbuf **, struct ifnet *, int,
-	struct inpcb *);
-int ipfw_check_frame(void *, struct mbuf **, struct ifnet *, int,
-	struct inpcb *);
 
 #ifdef SYSCTL_NODE
 
@@ -121,8 +117,8 @@ SYSEND
  * dummynet, divert, netgraph or other modules.
  * The packet may be consumed.
  */
-int
-ipfw_check_packet(void *arg, struct mbuf **m0, struct ifnet *ifp, int dir,
+static int
+ipfw_check_packet(struct mbuf **m0, struct ifnet *ifp, int dir,
     struct inpcb *inp)
 {
 	struct ip_fw_args args;
@@ -131,7 +127,7 @@ ipfw_check_packet(void *arg, struct mbuf **m0, struct ifnet *ifp, int dir,
 	int ret;
 
 	/* convert dir to IPFW values */
-	dir = (dir == PFIL_IN) ? DIR_IN : DIR_OUT;
+	dir = (dir & PFIL_IN) ? DIR_IN : DIR_OUT;
 	bzero(&args, sizeof(args));
 
 again:
@@ -307,8 +303,8 @@ again:
 /*
  * ipfw processing for ethernet packets (in and out).
  */
-int
-ipfw_check_frame(void *arg, struct mbuf **m0, struct ifnet *ifp, int dir,
+static int
+ipfw_check_frame(struct mbuf **m0, struct ifnet *ifp, int dir,
     struct inpcb *inp)
 {
 	struct ether_header *eh;
@@ -345,7 +341,7 @@ again:
 	m_adj(m, ETHER_HDR_LEN);	/* strip ethernet header */
 
 	args.m = m;		/* the packet we are looking at		*/
-	args.oif = dir == PFIL_OUT ? ifp: NULL;	/* destination, if any	*/
+	args.oif = dir & PFIL_OUT ? ifp: NULL;	/* destination, if any	*/
 	args.next_hop = NULL;	/* we do not support forward yet	*/
 	args.next_hop6 = NULL;	/* we do not support forward yet	*/
 	args.eh = &save_eh;	/* MAC header for bridged/MAC packets	*/
@@ -386,7 +382,7 @@ again:
 			break; /* i.e. drop */
 
 		*m0 = NULL;
-		dir2 = (dir == PFIL_IN) ? DIR_IN : DIR_OUT;
+		dir2 = (dir & PFIL_IN) ? DIR_IN : DIR_OUT;
 		ip_dn_io_ptr(&m, dir2 | PROTO_LAYER2, &args);
 		return 0;
 
@@ -396,7 +392,7 @@ again:
 			ret = EACCES;
 			break; /* i.e. drop */
 		}
-		ret = ng_ipfw_input_p(m0, (dir == PFIL_IN) ? DIR_IN : DIR_OUT,
+		ret = ng_ipfw_input_p(m0, (dir & PFIL_IN) ? DIR_IN : DIR_OUT,
 			&args, (i == IP_FW_NGTEE) ? 1 : 0);
 		if (i == IP_FW_NGTEE) /* ignore errors for NGTEE */
 			goto again;	/* continue with packet */
@@ -537,7 +533,7 @@ ipfw_hook(int onoff, int pf)
 		return ENOENT;
 
 	(void) (onoff ? pfil_add_hook : pfil_remove_hook)
-	    (hook_func, NULL, PFIL_IN | PFIL_OUT, pfh);
+	    (hook_func, PFIL_IN | PFIL_OUT, pfh);
 
 	return 0;
 }

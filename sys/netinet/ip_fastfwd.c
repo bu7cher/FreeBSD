@@ -231,9 +231,8 @@ ip_tryforward(struct mbuf *m)
 	if (!PFIL_HOOKED(&V_inet_pfil_hook))
 		goto passin;
 
-	if (pfil_run_hooks(
-	    &V_inet_pfil_hook, &m, m->m_pkthdr.rcvif, PFIL_IN, 0, NULL) ||
-	    m == NULL)
+	if (pfil_run_hooks(&V_inet_pfil_hook, &m, m->m_pkthdr.rcvif, PFIL_IN,
+	    NULL) || m == NULL)
 		goto drop;
 
 	M_ASSERTVALID(m);
@@ -324,8 +323,8 @@ passin:
 	if (!PFIL_HOOKED(&V_inet_pfil_hook))
 		goto passout;
 
-	if (pfil_run_hooks(&V_inet_pfil_hook, &m, nh.nh_ifp, PFIL_OUT, PFIL_FWD,
-	    NULL) || m == NULL) {
+	if (pfil_run_hooks(&V_inet_pfil_hook, &m, nh.nh_ifp,
+	    PFIL_OUT | PFIL_FWD, NULL) || m == NULL) {
 		goto drop;
 	}
 

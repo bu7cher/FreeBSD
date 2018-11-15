@@ -761,8 +761,8 @@ ip6_input(struct mbuf *m)
 		goto passin;
 
 	odst = ip6->ip6_dst;
-	if (pfil_run_hooks(&V_inet6_pfil_hook, &m,
-	    m->m_pkthdr.rcvif, PFIL_IN, 0, NULL))
+	if (pfil_run_hooks(&V_inet6_pfil_hook, &m, m->m_pkthdr.rcvif, PFIL_IN,
+	    NULL))
 		return;
 	if (m == NULL)			/* consumed by filter */
 		return;

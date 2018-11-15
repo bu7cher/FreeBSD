@@ -65,10 +65,8 @@ struct mbuf;
 struct ifnet;
 struct inpcb;
 
-typedef	int	(*pfil_func_t)(void *, struct mbuf **, struct ifnet *, int,
+typedef	int	(*pfil_func_t)(struct mbuf **, struct ifnet *, int,
 		    struct inpcb *);
-typedef	int	(*pfil_func_flags_t)(void *, struct mbuf **, struct ifnet *,
-		    int, int, struct inpcb *);
 
 /*
  * The packet filter hooks are designed for anything to call them to
@@ -78,8 +76,6 @@ typedef	int	(*pfil_func_flags_t)(void *, struct mbuf **, struct ifnet *,
 struct packet_filter_hook {
 	CK_STAILQ_ENTRY(packet_filter_hook) pfil_chain;
 	pfil_func_t		 pfil_func;
-	pfil_func_flags_t	 pfil_func_flags;
-	void			*pfil_arg;
 	struct epoch_context	 pfil_epoch_ctx;
 };
 typedef	CK_STAILQ_HEAD(pfil_chain, packet_filter_hook) pfil_chain_t;
@@ -87,7 +83,7 @@ typedef	CK_STAILQ_HEAD(pfil_chain, packet_filter_hook) pfil_chain_t;
 #define PFIL_IN		0x00000001
 #define PFIL_OUT	0x00000002
 #define PFIL_FWD	0x00000008
-#define PFIL_ALL	(PFIL_IN|PFIL_OUT)
+#define PFIL_DIR(f)	((f) & (PFIL_IN|PFIL_OUT))
 
 /*
  * A pfil head is created by each protocol or packet intercept point.
@@ -105,15 +101,13 @@ struct pfil_head {
 
 /* Public functions for pfil hook management by packet filters. */
 struct pfil_head *pfil_head_get(const char *name);
-int	pfil_add_hook_flags(pfil_func_flags_t, void *, int, struct pfil_head *);
-int	pfil_add_hook(pfil_func_t, void *, int, struct pfil_head *);
-int	pfil_remove_hook_flags(pfil_func_flags_t, void *, int, struct pfil_head *);
-int	pfil_remove_hook(pfil_func_t, void *, int, struct pfil_head *);
+int	pfil_add_hook(pfil_func_t, int, struct pfil_head *);
+int	pfil_remove_hook(pfil_func_t, int, struct pfil_head *);
 #define	PFIL_HOOKED(p) ((p)->ph_nhooks > 0)
 
 /* Public functions to run the packet inspection by protocols. */
 int	pfil_run_hooks(struct pfil_head *, struct mbuf **, struct ifnet *, int,
-    int, struct inpcb *inp);
+    struct inpcb *inp);
 
 /* Public functions for pfil head management by protocols. */
 int	pfil_head_register(struct pfil_head *);

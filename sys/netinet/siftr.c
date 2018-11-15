@@ -831,8 +831,7 @@ siftr_siftdata(struct pkt_node *pn, struct inpcb *inp, struct tcpcb *tp,
  * that support it so that they won't sleep, otherwise you get a panic.
  */
 static int
-siftr_chkpkt(void *arg, struct mbuf **m, struct ifnet *ifp, int dir,
-    struct inpcb *inp)
+siftr_chkpkt(struct mbuf **m, struct ifnet *ifp, int flags, struct inpcb *inp)
 {
 	struct pkt_node *pn;
 	struct ip *ip;
@@ -840,9 +839,10 @@ siftr_chkpkt(void *arg, struct mbuf **m, struct ifnet *ifp, int dir,
 	struct tcpcb *tp;
 	struct siftr_stats *ss;
 	unsigned int ip_hl;
-	int inp_locally_locked;
+	int inp_locally_locked, dir;
 
 	inp_locally_locked = 0;
+	dir = PFIL_DIR(flags);
 	ss = DPCPU_PTR(ss);
 
 	/*
@@ -1003,8 +1003,7 @@ ret:
 
 #ifdef SIFTR_IPV6
 static int
-siftr_chkpkt6(void *arg, struct mbuf **m, struct ifnet *ifp, int dir,
-    struct inpcb *inp)
+siftr_chkpkt6(struct mbuf **m, struct ifnet *ifp, int flags, struct inpcb *inp)
 {
 	struct pkt_node *pn;
 	struct ip6_hdr *ip6;
@@ -1012,9 +1011,10 @@ siftr_chkpkt6(void *arg, struct mbuf **m, struct ifnet *ifp, int dir,
 	struct tcpcb *tp;
 	struct siftr_stats *ss;
 	unsigned int ip6_hl;
-	int inp_locally_locked;
+	int inp_locally_locked, dir;
 
 	inp_locally_locked = 0;
+	dir = PFIL_DIR(flags);
 	ss = DPCPU_PTR(ss);
 
 	/*
@@ -1136,18 +1136,18 @@ siftr_pfil(int action)
 #endif
 
 		if (action == HOOK) {
-			pfil_add_hook(siftr_chkpkt, NULL,
-			    PFIL_IN | PFIL_OUT, pfh_inet);
+			pfil_add_hook(siftr_chkpkt, PFIL_IN | PFIL_OUT,
+			    pfh_inet);
 #ifdef SIFTR_IPV6
-			pfil_add_hook(siftr_chkpkt6, NULL,
-			    PFIL_IN | PFIL_OUT, pfh_inet6);
+			pfil_add_hook(siftr_chkpkt6, PFIL_IN | PFIL_OUT,
+			    pfh_inet6);
 #endif
 		} else if (action == UNHOOK) {
-			pfil_remove_hook(siftr_chkpkt, NULL,
-			    PFIL_IN | PFIL_OUT, pfh_inet);
+			pfil_remove_hook(siftr_chkpkt, PFIL_IN | PFIL_OUT,
+			    pfh_inet);
 #ifdef SIFTR_IPV6
-			pfil_remove_hook(siftr_chkpkt6, NULL,
-			    PFIL_IN | PFIL_OUT, pfh_inet6);
+			pfil_remove_hook(siftr_chkpkt6, PFIL_IN | PFIL_OUT,
+			    pfh_inet6);
 #endif
 		}
 		CURVNET_RESTORE();
