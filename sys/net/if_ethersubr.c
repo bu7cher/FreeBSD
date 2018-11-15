@@ -465,7 +465,7 @@ ether_output_frame(struct ifnet *ifp, struct mbuf *m)
 	    !ether_set_pcp(&m, ifp, pcp))
 		return (0);
 
-	if (PFIL_HOOKED(&V_link_pfil_hook)) {
+	if (PFIL_HOOKED_OUT(&V_link_pfil_hook)) {
 		error = pfil_run_hooks(&V_link_pfil_hook, &m, ifp, PFIL_OUT,
 		    NULL);
 		if (error != 0)
@@ -817,7 +817,7 @@ ether_demux(struct ifnet *ifp, struct mbuf *m)
 	KASSERT(ifp != NULL, ("%s: NULL interface pointer", __func__));
 
 	/* Do not grab PROMISC frames in case we are re-entered. */
-	if (PFIL_HOOKED(&V_link_pfil_hook) && !(m->m_flags & M_PROMISC)) {
+	if (PFIL_HOOKED_IN(&V_link_pfil_hook) && !(m->m_flags & M_PROMISC)) {
 		i = pfil_run_hooks(&V_link_pfil_hook, &m, ifp, PFIL_IN, NULL);
 		if (i != 0 || m == NULL)
 			return;

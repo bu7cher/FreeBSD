@@ -156,7 +156,7 @@ ip6_tryforward(struct mbuf *m)
 	/*
 	 * Incoming packet firewall processing.
 	 */
-	if (!PFIL_HOOKED(&V_inet6_pfil_hook))
+	if (!PFIL_HOOKED_IN(&V_inet6_pfil_hook))
 		goto passin;
 	if (pfil_run_hooks(&V_inet6_pfil_hook, &m, rcvif, PFIL_IN, NULL) != 0
 	    || m == NULL)
@@ -195,7 +195,7 @@ passin:
 		in6_ifstat_inc(rcvif, ifs6_in_noroute);
 		goto dropin;
 	}
-	if (!PFIL_HOOKED(&V_inet6_pfil_hook)) {
+	if (!PFIL_HOOKED_OUT(&V_inet6_pfil_hook)) {
 		if (m->m_pkthdr.len > nh.nh_mtu) {
 			in6_ifstat_inc(nh.nh_ifp, ifs6_in_toobig);
 			icmp6_error(m, ICMP6_PACKET_TOO_BIG, 0, nh.nh_mtu);

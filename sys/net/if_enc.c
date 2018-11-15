@@ -296,7 +296,8 @@ enc_hhook(int32_t hhook_type, int32_t hhook_id, void *udata, void *ctx_data,
 	default:
 		ph = NULL;
 	}
-	if (ph == NULL || !PFIL_HOOKED(ph))
+	if (ph == NULL || (pdir == PFIL_OUT && !PFIL_HOOKED_OUT(ph)) ||
+	    (pdir == PFIL_IN && !PFIL_HOOKED_IN(ph)))
 		return (0);
 	/* Make a packet looks like it was received on enc(4) */
 	rcvif = (*ctx->mp)->m_pkthdr.rcvif;

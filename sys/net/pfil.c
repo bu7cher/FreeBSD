@@ -125,7 +125,7 @@ pfil_head_register(struct pfil_head *ph)
 			return (EEXIST);
 		}
 	}
-	ph->ph_nhooks = 0;
+	ph->ph_nhooksin = ph->ph_nhooksout = 0;
 	CK_STAILQ_INIT(&ph->ph_in);
 	CK_STAILQ_INIT(&ph->ph_out);
 	LIST_INSERT_HEAD(&V_pfil_head_list, ph, ph_list);
@@ -199,7 +199,7 @@ pfil_add_hook(pfil_func_t func, int flags, struct pfil_head *ph)
 		err = pfil_chain_add(&ph->ph_in, pfh1, flags & ~PFIL_OUT);
 		if (err)
 			goto locked_error;
-		ph->ph_nhooks++;
+		ph->ph_nhooksin++;
 	}
 	if (flags & PFIL_OUT) {
 		pfh2->pfil_func = func;
@@ -209,7 +209,7 @@ pfil_add_hook(pfil_func_t func, int flags, struct pfil_head *ph)
 				old = pfil_chain_remove(&ph->ph_in, func);
 			goto locked_error;
 		}
-		ph->ph_nhooks++;
+		ph->ph_nhooksout++;
 	}
 	PFIL_UNLOCK();
 
@@ -248,13 +248,13 @@ pfil_remove_hook(pfil_func_t func, int flags, struct pfil_head *ph)
 	if (flags & PFIL_IN) {
 		in = pfil_chain_remove(&ph->ph_in, func);
 		if (in != NULL)
-			ph->ph_nhooks--;
+			ph->ph_nhooksin--;
 	} else
 		in = NULL;
 	if (flags & PFIL_OUT) {
 		out = pfil_chain_remove(&ph->ph_out, func);
 		if (out != NULL)
-			ph->ph_nhooks--;
+			ph->ph_nhooksout--;
 	} else
 		out = NULL;
 	PFIL_UNLOCK();
@@ -382,8 +382,8 @@ pfil_ioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flags,
 			if (++nheads > req->plh_nheads)
 				continue;
 			bcopy(ph->ph_name, ioch.ph_name, sizeof(ioch.ph_name));
-			ioch.ph_nhooksin = ph->ph_nhooks;
-			ioch.ph_nhooksout = ph->ph_nhooks;
+			ioch.ph_nhooksin = ph->ph_nhooksin;
+			ioch.ph_nhooksout = ph->ph_nhooksout;
 			ioch.ph_type = ph->ph_type;
 			error = copyout(&ioch, &req->plh_heads[nheads - 1],
 			    sizeof(ioch));

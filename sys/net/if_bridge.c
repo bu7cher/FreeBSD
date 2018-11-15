@@ -1970,9 +1970,9 @@ bridge_dummynet(struct mbuf *m, struct ifnet *ifp)
 		return;
 	}
 
-	if (PFIL_HOOKED(&V_inet_pfil_hook)
+	if (PFIL_HOOKED_OUT(&V_inet_pfil_hook)
 #ifdef INET6
-	    || PFIL_HOOKED(&V_inet6_pfil_hook)
+	    || PFIL_HOOKED_OUT(&V_inet6_pfil_hook)
 #endif
 	    ) {
 		if (bridge_pfil(&m, sc->sc_ifp, ifp, PFIL_OUT) != 0)
@@ -2230,9 +2230,9 @@ bridge_forward(struct bridge_softc *sc, struct bridge_iflist *sbif,
 		ETHER_BPF_MTAP(ifp, m);
 
 	/* run the packet filter */
-	if (PFIL_HOOKED(&V_inet_pfil_hook)
+	if (PFIL_HOOKED_IN(&V_inet_pfil_hook)
 #ifdef INET6
-	    || PFIL_HOOKED(&V_inet6_pfil_hook)
+	    || PFIL_HOOKED_IN(&V_inet6_pfil_hook)
 #endif
 	    ) {
 		BRIDGE_UNLOCK(sc);
@@ -2270,9 +2270,9 @@ bridge_forward(struct bridge_softc *sc, struct bridge_iflist *sbif,
 
 	BRIDGE_UNLOCK(sc);
 
-	if (PFIL_HOOKED(&V_inet_pfil_hook)
+	if (PFIL_HOOKED_OUT(&V_inet_pfil_hook)
 #ifdef INET6
-	    || PFIL_HOOKED(&V_inet6_pfil_hook)
+	    || PFIL_HOOKED_OUT(&V_inet6_pfil_hook)
 #endif
 	    ) {
 		if (bridge_pfil(&m, ifp, dst_if, PFIL_OUT) != 0)
@@ -2409,7 +2409,7 @@ bridge_input(struct ifnet *ifp, struct mbuf *m)
 
 #ifdef INET6
 #   define OR_PFIL_HOOKED_INET6 \
-	|| PFIL_HOOKED(&V_inet6_pfil_hook)
+	|| PFIL_HOOKED_IN(&V_inet6_pfil_hook)
 #else
 #   define OR_PFIL_HOOKED_INET6
 #endif
@@ -2427,7 +2427,7 @@ bridge_input(struct ifnet *ifp, struct mbuf *m)
 			if_inc_counter(iface, IFCOUNTER_IBYTES, m->m_pkthdr.len);		\
 			/* Filter on the physical interface. */		\
 			if (V_pfil_local_phys &&			\
-			    (PFIL_HOOKED(&V_inet_pfil_hook)		\
+			    (PFIL_HOOKED_IN(&V_inet_pfil_hook)		\
 			     OR_PFIL_HOOKED_INET6)) {			\
 				if (bridge_pfil(&m, NULL, ifp,		\
 				    PFIL_IN) != 0 || m == NULL) {	\
@@ -2517,9 +2517,9 @@ bridge_broadcast(struct bridge_softc *sc, struct ifnet *src_if,
 	}
 
 	/* Filter on the bridge interface before broadcasting */
-	if (runfilt && (PFIL_HOOKED(&V_inet_pfil_hook)
+	if (runfilt && (PFIL_HOOKED_OUT(&V_inet_pfil_hook)
 #ifdef INET6
-	    || PFIL_HOOKED(&V_inet6_pfil_hook)
+	    || PFIL_HOOKED_OUT(&V_inet6_pfil_hook)
 #endif
 	    )) {
 		if (bridge_pfil(&m, sc->sc_ifp, NULL, PFIL_OUT) != 0)
@@ -2564,9 +2564,9 @@ bridge_broadcast(struct bridge_softc *sc, struct ifnet *src_if,
 		 * pointer so we do not redundantly filter on the bridge for
 		 * each interface we broadcast on.
 		 */
-		if (runfilt && (PFIL_HOOKED(&V_inet_pfil_hook)
+		if (runfilt && (PFIL_HOOKED_OUT(&V_inet_pfil_hook)
 #ifdef INET6
-		    || PFIL_HOOKED(&V_inet6_pfil_hook)
+		    || PFIL_HOOKED_OUT(&V_inet6_pfil_hook)
 #endif
 		    )) {
 			if (used == 0) {
@@ -3172,7 +3172,7 @@ bridge_pfil(struct mbuf **mp, struct ifnet *bifp, struct ifnet *ifp, int dir)
 	}
 
 	/* Run the packet through pfil before stripping link headers */
-	if (PFIL_HOOKED(&V_link_pfil_hook) && V_pfil_ipfw != 0 &&
+	if (PFIL_HOOKED_OUT(&V_link_pfil_hook) && V_pfil_ipfw != 0 &&
 			dir == PFIL_OUT && ifp != NULL) {
 
 		error = pfil_run_hooks(&V_link_pfil_hook, mp, ifp, dir, NULL);

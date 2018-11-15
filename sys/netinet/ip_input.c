@@ -598,7 +598,7 @@ tooshort:
 	 */
 
 	/* Jump over all PFIL processing if hooks are not active. */
-	if (!PFIL_HOOKED(&V_inet_pfil_hook))
+	if (!PFIL_HOOKED_IN(&V_inet_pfil_hook))
 		goto passin;
 
 	odst = ip->ip_dst;

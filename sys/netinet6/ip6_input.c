@@ -757,7 +757,7 @@ ip6_input(struct mbuf *m)
 	 */
 
 	/* Jump over all PFIL processing if hooks are not active. */
-	if (!PFIL_HOOKED(&V_inet6_pfil_hook))
+	if (!PFIL_HOOKED_IN(&V_inet6_pfil_hook))
 		goto passin;
 
 	odst = ip6->ip6_dst;

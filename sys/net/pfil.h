@@ -92,7 +92,8 @@ typedef	CK_STAILQ_HEAD(pfil_chain, packet_filter_hook) pfil_chain_t;
 struct pfil_head {
 	pfil_chain_t	 ph_in;
 	pfil_chain_t	 ph_out;
-	int		 ph_nhooks;
+	int		 ph_nhooksin;
+	int		 ph_nhooksout;
 	int		 ph_flags;
 	enum pfil_types	 ph_type;
 	LIST_ENTRY(pfil_head) ph_list;
@@ -103,11 +104,12 @@ struct pfil_head {
 struct pfil_head *pfil_head_get(const char *name);
 int	pfil_add_hook(pfil_func_t, int, struct pfil_head *);
 int	pfil_remove_hook(pfil_func_t, int, struct pfil_head *);
-#define	PFIL_HOOKED(p) ((p)->ph_nhooks > 0)
 
 /* Public functions to run the packet inspection by protocols. */
 int	pfil_run_hooks(struct pfil_head *, struct mbuf **, struct ifnet *, int,
     struct inpcb *inp);
+#define	PFIL_HOOKED_IN(p) ((p)->ph_nhooksin > 0)
+#define	PFIL_HOOKED_OUT(p) ((p)->ph_nhooksout > 0)
 
 /* Public functions for pfil head management by protocols. */
 int	pfil_head_register(struct pfil_head *);
