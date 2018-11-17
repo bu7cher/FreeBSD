@@ -64,7 +64,7 @@ struct mbuf;
 struct ifnet;
 struct inpcb;
 
-typedef	int	(*pfil_func_t)(struct mbuf **, struct ifnet *, int,
+typedef	int	(*pfil_func_t)(struct mbuf **, struct ifnet *, int, void *,
 		    struct inpcb *);
 
 #define PFIL_IN		0x00000001
@@ -75,24 +75,41 @@ typedef	int	(*pfil_func_t)(struct mbuf **, struct ifnet *, int,
 /*
  * A pfil head is created by each protocol or packet intercept point.
  * For packet is then run through the hook chain for inspection.
+ *
+ * (p) - managed by pfil(9)
+ * (i) - set by intercept point
  */
 struct pfil_hook;
 typedef CK_STAILQ_HEAD(pfil_chain, pfil_hook)	pfil_chain_t;
 struct pfil_head {
-	pfil_chain_t	 ph_in;
-	pfil_chain_t	 ph_out;
-	int		 ph_nhooksin;
-	int		 ph_nhooksout;
-	int		 ph_flags;
-	enum pfil_types	 ph_type;
-	LIST_ENTRY(pfil_head) ph_list;
-	char		ph_name[IFNAMSIZ];
+	pfil_chain_t	 ph_in;				/* (p) */
+	pfil_chain_t	 ph_out;			/* (p) */
+	int		 ph_nhooksin;			/* (p) */
+	int		 ph_nhooksout;			/* (p) */
+	int		 ph_flags;			/* (i) */
+	enum pfil_types	 ph_type;			/* (i) */
+	LIST_ENTRY(pfil_head) ph_list;			/* (p) */
+	char		ph_name[IFNAMSIZ];		/* (i) */
 };
 
+/*
+ * Argument structure used by firewalls to register themselves.
+ */
+struct pfil_args {
+	int		 pa_version;
+	int		 pa_flags;
+	enum pfil_types	 pa_type;
+	const char	*pa_headname;
+	pfil_func_t	 pa_func;
+	void		*pa_ruleset;
+	const char	*pa_modname;
+	const char	*pa_rulname;
+};
+#define	PFIL_VERSION	1
+
 /* Public functions for pfil hook management by packet filters. */
-struct pfil_head *pfil_head_get(const char *name);
-int	pfil_add_hook(pfil_func_t, int, struct pfil_head *);
-int	pfil_remove_hook(pfil_func_t, int, struct pfil_head *);
+int	pfil_add_hook(struct pfil_args *);
+int	pfil_remove_hook(struct pfil_args *);
 
 /* Public functions to run the packet inspection by protocols. */
 int	pfil_run_hooks(struct pfil_head *, struct mbuf **, struct ifnet *, int,

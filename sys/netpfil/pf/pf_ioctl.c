@@ -170,15 +170,15 @@ static void		 pf_tbladdr_copyout(struct pf_addr_wrap *);
  */
 #ifdef INET
 static int pf_check_in(struct mbuf **m, struct ifnet *ifp, int flags,
-    struct inpcb *inp);
+    void *ruleset __unused, struct inpcb *inp);
 static int pf_check_out(struct mbuf **m, struct ifnet *ifp, int flags,
-    struct inpcb *inp);
+    void *ruleset __unused, struct inpcb *inp);
 #endif
 #ifdef INET6
 static int pf_check6_in(struct mbuf **m, struct ifnet *ifp, int flags,
-    struct inpcb *inp);
+    void *ruleset __unused, struct inpcb *inp);
 static int pf_check6_out(struct mbuf **m, struct ifnet *ifp, int flags,
-    struct inpcb *inp);
+    void *ruleset __unused, struct inpcb *inp);
 #endif
 
 static int		hook_pf(void);
@@ -4006,7 +4006,8 @@ shutdown_pf(void)
 
 #ifdef INET
 static int
-pf_check_in(struct mbuf **m, struct ifnet *ifp, int flags, struct inpcb *inp)
+pf_check_in(struct mbuf **m, struct ifnet *ifp, int flags,
+    void *ruleset __unused, struct inpcb *inp)
 {
 	int chk;
 
@@ -4022,7 +4023,8 @@ pf_check_in(struct mbuf **m, struct ifnet *ifp, int flags, struct inpcb *inp)
 }
 
 static int
-pf_check_out(struct mbuf **m, struct ifnet *ifp, int flags, struct inpcb *inp)
+pf_check_out(struct mbuf **m, struct ifnet *ifp, int flags,
+    void *ruleset __unused,  struct inpcb *inp)
 {
 	int chk;
 
@@ -4040,7 +4042,8 @@ pf_check_out(struct mbuf **m, struct ifnet *ifp, int flags, struct inpcb *inp)
 
 #ifdef INET6
 static int
-pf_check6_in(struct mbuf **m, struct ifnet *ifp, int flags, struct inpcb *inp)
+pf_check6_in(struct mbuf **m, struct ifnet *ifp, int flags,
+    void *ruleset __unused,  struct inpcb *inp)
 {
 	int chk;
 
@@ -4062,7 +4065,8 @@ pf_check6_in(struct mbuf **m, struct ifnet *ifp, int flags, struct inpcb *inp)
 }
 
 static int
-pf_check6_out(struct mbuf **m, struct ifnet *ifp, int flags, struct inpcb *inp)
+pf_check6_out(struct mbuf **m, struct ifnet *ifp, int flags,
+    void *ruleset __unused,  struct inpcb *inp)
 {
 	int chk;
 
@@ -4082,34 +4086,34 @@ pf_check6_out(struct mbuf **m, struct ifnet *ifp, int flags, struct inpcb *inp)
 static int
 hook_pf(void)
 {
-#ifdef INET
-	struct pfil_head *pfh_inet;
-#endif
-#ifdef INET6
-	struct pfil_head *pfh_inet6;
-#endif
+	struct pfil_args pa;
 
 	if (V_pf_pfil_hooked)
 		return (0);
 
+	bzero(&pa, sizeof(pa));
+	pa.pa_version = PFIL_VERSION;
+	pa.pa_modname = "pf";
+
 #ifdef INET
-	pfh_inet = pfil_head_get(PFIL_INET_NAME);
-	if (pfh_inet == NULL)
-		return (ESRCH); /* XXX */
-	pfil_add_hook(pf_check_in, PFIL_IN, pfh_inet);
-	pfil_add_hook(pf_check_out, PFIL_OUT, pfh_inet);
+	pa.pa_headname = PFIL_INET_NAME;
+	pa.pa_type = PFIL_TYPE_IP4;
+	pa.pa_func = pf_check_in;
+	pa.pa_flags = PFIL_IN;
+	pfil_add_hook(&pa);
+	pa.pa_func = pf_check_out;
+	pa.pa_flags = PFIL_OUT;
+	pfil_add_hook(&pa);
 #endif
 #ifdef INET6
-	pfh_inet6 = pfil_head_get(PFIL_INET6_NAME);
-	if (pfh_inet6 == NULL) {
-#ifdef INET
-		pfil_remove_hook(pf_check_in, PFIL_IN, pfh_inet);
-		pfil_remove_hook(pf_check_out, PFIL_OUT, pfh_inet);
-#endif
-		return (ESRCH); /* XXX */
-	}
-	pfil_add_hook(pf_check6_in, PFIL_IN, pfh_inet6);
-	pfil_add_hook(pf_check6_out, PFIL_OUT, pfh_inet6);
+	pa.pa_headname = PFIL_INET6_NAME;
+	pa.pa_type = PFIL_TYPE_IP6;
+	pa.pa_func = pf_check6_in;
+	pa.pa_flags = PFIL_IN;
+	pfil_add_hook(&pa);
+	pa.pa_func = pf_check6_out;
+	pa.pa_flags = PFIL_OUT;
+	pfil_add_hook(&pa);
 #endif
 
 	V_pf_pfil_hooked = 1;
@@ -4119,29 +4123,32 @@ hook_pf(void)
 static int
 dehook_pf(void)
 {
-#ifdef INET
-	struct pfil_head *pfh_inet;
-#endif
-#ifdef INET6
-	struct pfil_head *pfh_inet6;
-#endif
+	struct pfil_args pa;
 
 	if (V_pf_pfil_hooked == 0)
 		return (0);
 
+	bzero(&pa, sizeof(pa));
+	pa.pa_version = PFIL_VERSION;
+	pa.pa_modname = "pf";
+
 #ifdef INET
-	pfh_inet = pfil_head_get(PFIL_INET_NAME);
-	if (pfh_inet == NULL)
-		return (ESRCH); /* XXX */
-	pfil_remove_hook(pf_check_in, PFIL_IN, pfh_inet);
-	pfil_remove_hook(pf_check_out, PFIL_OUT, pfh_inet);
+	pa.pa_headname = PFIL_INET_NAME;
+	pa.pa_func = pf_check_in;
+	pa.pa_flags = PFIL_IN;
+	pfil_remove_hook(&pa);
+	pa.pa_func = pf_check_out;
+	pa.pa_flags = PFIL_OUT;
+	pfil_remove_hook(&pa);
 #endif
 #ifdef INET6
-	pfh_inet6 = pfil_head_get(PFIL_INET6_NAME);
-	if (pfh_inet6 == NULL)
-		return (ESRCH); /* XXX */
-	pfil_remove_hook(pf_check6_in, PFIL_IN, pfh_inet6);
-	pfil_remove_hook(pf_check6_out, PFIL_OUT, pfh_inet6);
+	pa.pa_headname = PFIL_INET6_NAME;
+	pa.pa_func = pf_check6_in;
+	pa.pa_flags = PFIL_IN;
+	pfil_remove_hook(&pa);
+	pa.pa_func = pf_check6_out;
+	pa.pa_flags = PFIL_OUT;
+	pfil_remove_hook(&pa);
 #endif
 
 	V_pf_pfil_hooked = 0;

@@ -97,7 +97,7 @@ static void ipf_ifevent(arg, ifp)
 
 static int
 ipf_check_wrapper(struct mbuf **mp, struct ifnet *ifp, int flags,
-    struct inpcb *inp)
+    void *ruleset __unused, struct inpcb *inp)
 {
 	struct ip *ip = mtod(*mp, struct ip *);
 	int rv;
@@ -113,7 +113,7 @@ ipf_check_wrapper(struct mbuf **mp, struct ifnet *ifp, int flags,
 #ifdef USE_INET6
 static int
 ipf_check_wrapper6(struct mbuf **mp, struct ifnet *ifp, int flags,
-    struct inpcb *inp)
+    void *ruleset __unused, struct inpcb *inp)
 {
 	int error;
 
@@ -1233,50 +1233,53 @@ ipf_inject(fin, m)
 }
 
 int ipf_pfil_unhook(void) {
-	struct pfil_head *ph_inet;
-#ifdef USE_INET6
-	struct pfil_head *ph_inet6;
-#endif
+	struct pfil_args pa;
 
-	ph_inet = pfil_head_get(PFIL_INET_NAME);
-	if (ph_inet != NULL)
-		pfil_remove_hook(ipf_check_wrapper, PFIL_IN | PFIL_OUT,
-		    ph_inet);
+	bzero(&pa, sizeof(pa));
+	pa.pa_version = PFIL_VERSION;
+	pa.pa_flags = PFIL_IN | PFIL_OUT;
+	pa.pa_modname = "ipfilter";
+	pa.pa_headname = PFIL_INET_NAME;
+	pa.pa_func = ipf_check_wrapper;
+	pfil_remove_hook(&pa);
+
 #ifdef USE_INET6
-	ph_inet6 = pfil_head_get(PFIL_INET6_NAME);
-	if (ph_inet6 != NULL)
-		pfil_remove_hook(ipf_check_wrapper6, PFIL_IN | PFIL_OUT,
-		    ph_inet6);
+	pa.pa_headname = PFIL_INET6_NAME;
+	pa.pa_func = ipf_check_wrapper6;
+	pfil_remove_hook(&pa);
 #endif
 
 	return (0);
 }
 
 int ipf_pfil_hook(void) {
-	struct pfil_head *ph_inet;
+	struct pfil_args pa;
+	int error, error6;
+
+	bzero(&pa, sizeof(pa));
+	pa.pa_version = PFIL_VERSION;
+	pa.pa_flags = PFIL_IN | PFIL_OUT;
+	pa.pa_modname = "ipfilter";
+	pa.pa_headname = PFIL_INET_NAME;
+	pa.pa_func = ipf_check_wrapper;
+	pa.pa_type = PFIL_TYPE_IP4;
+
+	error = pfil_add_hook(&pa);
+
 #ifdef USE_INET6
-	struct pfil_head *ph_inet6;
+	pa.pa_headname = PFIL_INET6_NAME;
+	pa.pa_func = ipf_check_wrapper6;
+	pa.pa_type = PFIL_TYPE_IP6;
 #endif
 
-	ph_inet = pfil_head_get(PFIL_INET_NAME);
-#ifdef USE_INET6
-	ph_inet6 = pfil_head_get(PFIL_INET6_NAME);
-#endif
-	if (ph_inet == NULL
-#ifdef USE_INET6
-	    && ph_inet6 == NULL
-#endif
-	   ) {
-		return ENODEV;
-	}
+	error6 = pfil_add_hook(&pa);
 
-	if (ph_inet != NULL)
-		pfil_add_hook(ipf_check_wrapper, PFIL_IN | PFIL_OUT, ph_inet);
-#ifdef USE_INET6
-	if (ph_inet6 != NULL)
-		pfil_add_hook(ipf_check_wrapper6, PFIL_IN | PFIL_OUT, ph_inet6);
-#endif
-	return (0);
+	if (error || error6)
+		error = ENODEV;
+	else
+		error = 0;
+
+	return (error);
 }
 
 void

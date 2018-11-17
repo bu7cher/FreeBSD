@@ -77,10 +77,12 @@ VNET_DEFINE_STATIC(struct pfilheadhead, pfil_head_list);
 struct pfil_hook {
 	CK_STAILQ_ENTRY(pfil_hook) pfil_chain;
 	pfil_func_t		 pfil_func;
+	void			*pfil_ruleset;
 	struct epoch_context	 pfil_epoch_ctx;
+	const char		*pfil_modname;
+	const char		*pfil_rulname;
 };
 
-static int pfil_chain_add(pfil_chain_t *, struct pfil_hook *, int);
 static struct pfil_hook *pfil_chain_remove(pfil_chain_t *, pfil_func_t );
 static void pfil_chain_free(epoch_context_t);
 
@@ -106,7 +108,7 @@ pfil_run_hooks(struct pfil_head *ph, struct mbuf **mp, struct ifnet *ifp,
 
 	PFIL_EPOCH_ENTER(et);
 	CK_STAILQ_FOREACH(pfh, pch, pfil_chain) {
-		rv = (*pfh->pfil_func)(&m, ifp, flags, inp);
+		rv = (*pfh->pfil_func)(&m, ifp, flags, pfh->pfil_ruleset, inp);
 		if (rv != 0 || m == NULL)
 			break;
 	}
@@ -162,74 +164,64 @@ pfil_head_unregister(struct pfil_head *ph)
 	return (0);
 }
 
-/*
- * pfil_head_get() returns the pfil_head for a given name.
- */
-struct pfil_head *
-pfil_head_get(const char *name)
+int
+pfil_add_hook(struct pfil_args *pa)
 {
 	struct pfil_head *ph;
+	struct pfil_hook *in, *out;
+	int error;
+
+	MPASS(pa->pa_version == PFIL_VERSION);
+
+	if (pa->pa_flags & PFIL_IN) {
+		in = malloc(sizeof(*in), M_PFIL, M_WAITOK | M_ZERO);
+		in->pfil_func = pa->pa_func;
+		in->pfil_ruleset= pa->pa_ruleset;
+		in->pfil_modname = pa->pa_modname;
+		in->pfil_ruleset = pa->pa_ruleset;
+	} else
+		in = NULL;
+	if (pa->pa_flags & PFIL_OUT) {
+		out = malloc(sizeof(*out), M_PFIL, M_WAITOK | M_ZERO);
+		out->pfil_func = pa->pa_func;
+		out->pfil_ruleset= pa->pa_ruleset;
+		out->pfil_modname = pa->pa_modname;
+		out->pfil_ruleset = pa->pa_ruleset;
+	} else
+		out = NULL;
 
 	PFIL_LOCK();
 	LIST_FOREACH(ph, &V_pfil_head_list, ph_list)
-		if (strcmp(name, ph->ph_name) == 0)
+		if (strcmp(pa->pa_headname, ph->ph_name) == 0)
 			break;
-	PFIL_UNLOCK();
 
-	return (ph);
-}
+	if (ph == NULL) {
+		error = ENOENT;
+		goto fail;
+	}
 
-/*
- * pfil_add_hook() adds a function to the packet filter hook.  the
- * flags are:
- *	PFIL_IN		call me on incoming packets
- *	PFIL_OUT	call me on outgoing packets
- */
-int
-pfil_add_hook(pfil_func_t func, int flags, struct pfil_head *ph)
-{
-	struct pfil_hook *pfh1 = NULL;
-	struct pfil_hook *pfh2 = NULL;
-	struct pfil_hook *old = NULL;
-	int err;
+	if (ph->ph_type != pa->pa_type || (pa->pa_flags & ~ph->ph_flags)) {
+		error = EINVAL;
+		goto fail;
+	}
 
-	MPASS(func);
-
-	if (flags & PFIL_IN)
-		pfh1 = malloc(sizeof(*pfh1), M_PFIL, M_WAITOK);
-	if (flags & PFIL_OUT)
-		pfh2 = malloc(sizeof(*pfh1), M_PFIL, M_WAITOK);
-	PFIL_LOCK();
-	if (flags & PFIL_IN) {
-		pfh1->pfil_func = func;
-		err = pfil_chain_add(&ph->ph_in, pfh1, flags & ~PFIL_OUT);
-		if (err)
-			goto locked_error;
+	if (pa->pa_flags & PFIL_IN) {
+		CK_STAILQ_INSERT_HEAD(&ph->ph_in, in, pfil_chain);
 		ph->ph_nhooksin++;
 	}
-	if (flags & PFIL_OUT) {
-		pfh2->pfil_func = func;
-		err = pfil_chain_add(&ph->ph_out, pfh2, flags & ~PFIL_IN);
-		if (err) {
-			if (flags & PFIL_IN)
-				old = pfil_chain_remove(&ph->ph_in, func);
-			goto locked_error;
-		}
+	if (pa->pa_flags & PFIL_OUT) {
+		CK_STAILQ_INSERT_TAIL(&ph->ph_out, out, pfil_chain);
 		ph->ph_nhooksout++;
 	}
 	PFIL_UNLOCK();
 
 	return (0);
 
-locked_error:
+fail:
 	PFIL_UNLOCK();
-	if (pfh1 != NULL)
-		free(pfh1, M_PFIL);
-	if (pfh2 != NULL)
-		free(pfh2, M_PFIL);
-	if (old != NULL)
-		epoch_call(PFIL_EPOCH, &old->pfil_epoch_ctx, pfil_chain_free);
-	return (err);
+	free(in, M_PFIL);
+	free(out, M_PFIL);
+	return (error);
 }
 
 static void
@@ -246,19 +238,29 @@ pfil_chain_free(epoch_context_t ctx)
  * chain.
  */
 int
-pfil_remove_hook(pfil_func_t func, int flags, struct pfil_head *ph)
+pfil_remove_hook(struct pfil_args *pa)
 {
+	struct pfil_head *ph;
 	struct pfil_hook *in, *out;
 
 	PFIL_LOCK();
-	if (flags & PFIL_IN) {
-		in = pfil_chain_remove(&ph->ph_in, func);
+	LIST_FOREACH(ph, &V_pfil_head_list, ph_list)
+		if (strcmp(pa->pa_headname, ph->ph_name) == 0)
+			break;
+
+	if (ph == NULL) {
+		PFIL_UNLOCK();
+		return (ENOENT);
+	}
+
+	if (pa->pa_flags & PFIL_IN) {
+		in = pfil_chain_remove(&ph->ph_in, pa->pa_func);
 		if (in != NULL)
 			ph->ph_nhooksin--;
 	} else
 		in = NULL;
-	if (flags & PFIL_OUT) {
-		out = pfil_chain_remove(&ph->ph_out, func);
+	if (pa->pa_flags & PFIL_OUT) {
+		out = pfil_chain_remove(&ph->ph_out, pa->pa_func);
 		if (out != NULL)
 			ph->ph_nhooksout--;
 	} else
@@ -269,35 +271,6 @@ pfil_remove_hook(pfil_func_t func, int flags, struct pfil_head *ph)
 		epoch_call(PFIL_EPOCH, &in->pfil_epoch_ctx, pfil_chain_free);
 	if (out != NULL)
 		epoch_call(PFIL_EPOCH, &out->pfil_epoch_ctx, pfil_chain_free);
-
-	return (0);
-}
-
-/*
- * Internal: Add a new pfil hook into a hook chain.
- */
-static int
-pfil_chain_add(pfil_chain_t *chain, struct pfil_hook *pfh1, int flags)
-{
-	struct pfil_hook *pfh;
-
-	PFIL_LOCK_ASSERT();
-
-	/*
-	 * First make sure the hook is not already there.
-	 */
-	CK_STAILQ_FOREACH(pfh, chain, pfil_chain)
-		if (pfh->pfil_func == pfh1->pfil_func)
-			return (EEXIST);
-
-	/*
-	 * Insert the input list in reverse order of the output list so that
-	 * the same path is followed in or out of the kernel.
-	 */
-	if (flags & PFIL_IN)
-		CK_STAILQ_INSERT_HEAD(chain, pfh1, pfil_chain);
-	else
-		CK_STAILQ_INSERT_TAIL(chain, pfh1, pfil_chain);
 
 	return (0);
 }

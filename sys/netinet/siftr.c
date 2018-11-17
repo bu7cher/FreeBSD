@@ -831,7 +831,8 @@ siftr_siftdata(struct pkt_node *pn, struct inpcb *inp, struct tcpcb *tp,
  * that support it so that they won't sleep, otherwise you get a panic.
  */
 static int
-siftr_chkpkt(struct mbuf **m, struct ifnet *ifp, int flags, struct inpcb *inp)
+siftr_chkpkt(struct mbuf **m, struct ifnet *ifp, int flags,
+    void *ruleset __unused, struct inpcb *inp)
 {
 	struct pkt_node *pn;
 	struct ip *ip;
@@ -1121,33 +1122,40 @@ ret6:
 static int
 siftr_pfil(int action)
 {
-	struct pfil_head *pfh_inet;
-#ifdef SIFTR_IPV6
-	struct pfil_head *pfh_inet6;
-#endif
+	struct pfil_args pa;
+
+	bzero(&pa, sizeof(pa));
+	pa.pa_version = PFIL_VERSION;
+	pa.pa_flags = PFIL_IN | PFIL_OUT;
+	pa.pa_modname = "siftr";
+
 	VNET_ITERATOR_DECL(vnet_iter);
 
 	VNET_LIST_RLOCK();
 	VNET_FOREACH(vnet_iter) {
 		CURVNET_SET(vnet_iter);
-		pfh_inet = pfil_head_get(PFIL_INET_NAME);
-#ifdef SIFTR_IPV6
-		pfh_inet6 = pfil_head_get(PFIL_INET6_NAME);
-#endif
 
 		if (action == HOOK) {
-			pfil_add_hook(siftr_chkpkt, PFIL_IN | PFIL_OUT,
-			    pfh_inet);
+			pa.pa_headname = PFIL_INET_NAME;
+			pa.pa_func = siftr_chkpkt;
+			pa.pa_type = PFIL_TYPE_IP4;
+			pfil_add_hook(&pa);
 #ifdef SIFTR_IPV6
-			pfil_add_hook(siftr_chkpkt6, PFIL_IN | PFIL_OUT,
-			    pfh_inet6);
+			pa.pa_headname = PFIL_INET6_NAME;
+			pa.pa_func = siftr_chkpkt6;
+			pa.pa_type = PFIL_TYPE_IP6;
+			pfil_add_hook(&pa);
 #endif
 		} else if (action == UNHOOK) {
-			pfil_remove_hook(siftr_chkpkt, PFIL_IN | PFIL_OUT,
-			    pfh_inet);
+			pa.pa_headname = PFIL_INET_NAME;
+			pa.pa_func = siftr_chkpkt;
+			pa.pa_type = PFIL_TYPE_IP4;
+			pfil_remove_hook(&pa);
 #ifdef SIFTR_IPV6
-			pfil_remove_hook(siftr_chkpkt6, PFIL_IN | PFIL_OUT,
-			    pfh_inet6);
+			pa.pa_headname = PFIL_INET6_NAME;
+			pa.pa_func = siftr_chkpkt6;
+			pa.pa_type = PFIL_TYPE_IP6;
+			pfil_remove_hook(&pa);
 #endif
 		}
 		CURVNET_RESTORE();

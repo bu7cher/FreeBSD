@@ -312,6 +312,8 @@ ip_init(void)
 
 	/* Initialize packet filter hooks. */
 	sprintf(V_inet_pfil_hook.ph_name, PFIL_INET_NAME);
+	V_inet_pfil_hook.ph_type = PFIL_TYPE_IP4;
+	V_inet_pfil_hook.ph_flags = PFIL_IN | PFIL_OUT;
 	if ((i = pfil_head_register(&V_inet_pfil_hook)) != 0)
 		printf("%s: WARNING: unable to register pfil hook, "
 			"error %d\n", __func__, i);

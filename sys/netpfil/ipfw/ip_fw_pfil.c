@@ -119,7 +119,7 @@ SYSEND
  */
 static int
 ipfw_check_packet(struct mbuf **m0, struct ifnet *ifp, int dir,
-    struct inpcb *inp)
+    void *ruleset __unused, struct inpcb *inp)
 {
 	struct ip_fw_args args;
 	struct m_tag *tag;
@@ -305,7 +305,7 @@ again:
  */
 static int
 ipfw_check_frame(struct mbuf **m0, struct ifnet *ifp, int dir,
-    struct inpcb *inp)
+    void *ruleset __unused, struct inpcb *inp)
 {
 	struct ether_header *eh;
 	struct ether_header save_eh;
@@ -509,31 +509,31 @@ ipfw_divert(struct mbuf **m0, int incoming, struct ipfw_rule_ref *rule,
 static int
 ipfw_hook(int onoff, int pf)
 {
-	struct pfil_head *pfh;
-	pfil_func_t hook_func;
-	const char *name;
+	struct pfil_args pa;
 
+	bzero(&pa, sizeof(pa));
+	pa.pa_version = PFIL_VERSION;
+	pa.pa_flags = PFIL_IN | PFIL_OUT;
+	pa.pa_modname = "ipfw";
 	switch (pf) {
 	case AF_INET:
-		name = PFIL_INET_NAME;
-		hook_func = ipfw_check_packet;
+		pa.pa_headname = PFIL_INET_NAME;
+		pa.pa_func = ipfw_check_packet;
+		pa.pa_type = PFIL_TYPE_IP4;
 		break;
 	case AF_INET6:
-		name = PFIL_INET6_NAME;
-		hook_func = ipfw_check_packet;
+		pa.pa_headname = PFIL_INET6_NAME;
+		pa.pa_func = ipfw_check_packet;
+		pa.pa_type = PFIL_TYPE_IP6;
 		break;
 	case AF_LINK:
-		name = PFIL_ETHER_NAME;
-		hook_func = ipfw_check_frame;
+		pa.pa_headname = PFIL_ETHER_NAME;
+		pa.pa_func = ipfw_check_frame;
+		pa.pa_type = PFIL_TYPE_ETHERNET;
 		break;
 	}
 
-	pfh = pfil_head_get(name);
-	if (pfh == NULL)
-		return ENOENT;
-
-	(void) (onoff ? pfil_add_hook : pfil_remove_hook)
-	    (hook_func, PFIL_IN | PFIL_OUT, pfh);
+	(void) (onoff ? pfil_add_hook : pfil_remove_hook)(&pa);
 
 	return 0;
 }
