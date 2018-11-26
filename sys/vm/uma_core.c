@@ -2978,7 +2978,7 @@ uma_zfree_arg(uma_zone_t zone, void *item, void *udata)
 	uma_bucket_t bucket;
 	uma_zone_domain_t zdom;
 	int cpu, domain;
-	bool lockfail, locked;
+	bool lockfail;
 #ifdef INVARIANTS
 	bool skipdbg;
 #endif
@@ -3031,7 +3031,6 @@ uma_zfree_arg(uma_zone_t zone, void *item, void *udata)
 	 * current cache; when we re-acquire the critical section, we must
 	 * detect and handle migration if it has occurred.
 	 */
-	locked = false;
 zfree_restart:
 	critical_enter();
 	cpu = curcpu;
@@ -3053,8 +3052,6 @@ zfree_start:
 		bucket->ub_cnt++;
 		cache->uc_frees++;
 		critical_exit();
-		if (locked)
-			ZONE_UNLOCK(zone);
 		return;
 	}
 
@@ -3071,13 +3068,10 @@ zfree_start:
 		goto zfree_item;
 
 	lockfail = false;
-	if (!locked) {
-		if (ZONE_TRYLOCK(zone) == 0) {
-			/* Record contention to size the buckets. */
-			ZONE_LOCK(zone);
-			lockfail = true;
-		}
-		locked = true;
+	if (ZONE_TRYLOCK(zone) == 0) {
+		/* Record contention to size the buckets. */
+		ZONE_LOCK(zone);
+		lockfail = true;
 	}
 	/*
 	 * Now we got the lock, check for sleepers and give a chance to
@@ -3092,8 +3086,10 @@ zfree_start:
 	cache = &zone->uz_cpu[cpu];
 
 	bucket = cache->uc_freebucket;
-	if (bucket != NULL && bucket->ub_cnt < bucket->ub_entries)
+	if (bucket != NULL && bucket->ub_cnt < bucket->ub_entries) {
+		ZONE_UNLOCK(zone);
 		goto zfree_start;
+	}
 	cache->uc_freebucket = NULL;
 	/* We are no longer associated with this CPU. */
 	critical_exit();
@@ -3116,7 +3112,6 @@ zfree_start:
 		    ("uma_zfree: Attempting to insert not full bucket onto the full list.\n"));
 		if (zone->uz_bktcount >= zone->uz_bktmax) {
 			ZONE_UNLOCK(zone);
-			locked = false;
 			bucket_drain(zone, bucket);
 			bucket_free(zone, bucket, udata);
 			goto zfree_restart;
@@ -3131,7 +3126,6 @@ zfree_start:
 	if (lockfail && zone->uz_count < zone->uz_count_max)
 		zone->uz_count++;
 	ZONE_UNLOCK(zone);
-	locked = false;
 
 	bucket = bucket_alloc(zone, udata, M_NOWAIT);
 	CTR3(KTR_UMA, "uma_zfree: zone %s(%p) allocated bucket %p",
@@ -3159,8 +3153,6 @@ zfree_start:
 	 * If nothing else caught this, we'll just do an internal free.
 	 */
 zfree_item:
-	if (locked)
-		ZONE_UNLOCK(zone);
 	zone_free_item(zone, item, udata, SKIP_DTOR);
 }
 
