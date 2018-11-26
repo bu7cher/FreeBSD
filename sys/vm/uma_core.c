@@ -481,13 +481,13 @@ zone_put_bucket(uma_zone_t zone, uma_zone_domain_t zdom, uma_bucket_t bucket,
 {
 
 	ZONE_LOCK_ASSERT(zone);
+	KASSERT(zone->uz_bktcount < zone->uz_bktmax, ("%s: zone %p overflow",
+	    __func__, zone));
 
 	LIST_INSERT_HEAD(&zdom->uzd_buckets, bucket, ub_link);
 	zdom->uzd_nitems += bucket->ub_cnt;
 	if (ws && zdom->uzd_imax < zdom->uzd_nitems)
 		zdom->uzd_imax = zdom->uzd_nitems;
-	KASSERT(zone->uz_bktcount < zone->uz_bktmax, ("%s: zone %p overflow",
-	    __func__, zone));
 	zone->uz_bktcount += bucket->ub_cnt;
 }
 
