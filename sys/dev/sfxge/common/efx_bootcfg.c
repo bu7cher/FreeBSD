@@ -295,7 +295,7 @@ fail1:
 				efx_rc_t
 efx_bootcfg_read(
 	__in			efx_nic_t *enp,
-	__out_bcount(size)	caddr_t data,
+	__out_bcount(size)	uint8_t *data,
 	__in			size_t size)
 {
 	uint8_t *payload = NULL;
@@ -350,18 +350,18 @@ efx_bootcfg_read(
 
 	if ((rc = efx_nvram_read_chunk(enp, EFX_NVRAM_BOOTROM_CFG,
 	    sector_offset, (caddr_t)payload, sector_length)) != 0) {
-		(void) efx_nvram_rw_finish(enp, EFX_NVRAM_BOOTROM_CFG);
+		(void) efx_nvram_rw_finish(enp, EFX_NVRAM_BOOTROM_CFG, NULL);
 		goto fail6;
 	}
 
-	if ((rc = efx_nvram_rw_finish(enp, EFX_NVRAM_BOOTROM_CFG)) != 0)
+	if ((rc = efx_nvram_rw_finish(enp, EFX_NVRAM_BOOTROM_CFG, NULL)) != 0)
 		goto fail7;
 
 	/* Verify that the area is correctly formatted and checksummed */
-	rc = efx_bootcfg_verify(enp, (caddr_t)payload, sector_length,
+	rc = efx_bootcfg_verify(enp, payload, sector_length,
 	    &used_bytes);
 	if (rc != 0 || used_bytes == 0) {
-		payload[0] = (uint8_t)~DHCP_END;
+		payload[0] = (uint8_t)(~DHCP_END & 0xff);
 		payload[1] = DHCP_END;
 		used_bytes = 2;
 	}
@@ -435,7 +435,7 @@ fail1:
 				efx_rc_t
 efx_bootcfg_write(
 	__in			efx_nic_t *enp,
-	__in_bcount(size)	caddr_t data,
+	__in_bcount(size)	uint8_t *data,
 	__in			size_t size)
 {
 	uint8_t *partn_data;
@@ -526,7 +526,7 @@ efx_bootcfg_write(
 		    0, (caddr_t)partn_data, partn_length)) != 0)
 		goto fail11;
 
-	if ((rc = efx_nvram_rw_finish(enp, EFX_NVRAM_BOOTROM_CFG)) != 0)
+	if ((rc = efx_nvram_rw_finish(enp, EFX_NVRAM_BOOTROM_CFG, NULL)) != 0)
 		goto fail12;
 
 	EFSYS_KMEM_FREE(enp->en_esip, partn_length, partn_data);
@@ -542,7 +542,7 @@ fail10:
 fail9:
 	EFSYS_PROBE(fail9);
 
-	(void) efx_nvram_rw_finish(enp, EFX_NVRAM_BOOTROM_CFG);
+	(void) efx_nvram_rw_finish(enp, EFX_NVRAM_BOOTROM_CFG, NULL);
 fail8:
 	EFSYS_PROBE(fail8);
 

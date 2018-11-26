@@ -55,7 +55,7 @@ struct efx_mcdi_req_s {
 	unsigned int	emr_cmd;
 	uint8_t		*emr_in_buf;
 	size_t		emr_in_length;
-	/* Outputs: retcode, buffer, length, and length used*/
+	/* Outputs: retcode, buffer, length, and length used */
 	efx_rc_t	emr_rc;
 	uint8_t		*emr_out_buf;
 	size_t		emr_out_length;
@@ -138,6 +138,15 @@ efx_mcdi_version(
 	__out_ecount_opt(4)	uint16_t versionp[4],
 	__out_opt		uint32_t *buildp,
 	__out_opt		efx_mcdi_boot_t *statusp);
+
+extern	__checkReturn	efx_rc_t
+efx_mcdi_get_capabilities(
+	__in		efx_nic_t *enp,
+	__out_opt	uint32_t *flagsp,
+	__out_opt	uint16_t *rx_dpcpu_fw_idp,
+	__out_opt	uint16_t *tx_dpcpu_fw_idp,
+	__out_opt	uint32_t *flags2p,
+	__out_opt	uint32_t *tso2ncp);
 
 extern	__checkReturn		efx_rc_t
 efx_mcdi_read_assertion(
@@ -376,6 +385,10 @@ efx_mcdi_phy_module_get_info(
 #define	MCDI_OUT_WORD(_emr, _ofst)					\
 	EFX_WORD_FIELD(*MCDI_OUT2(_emr, efx_word_t, _ofst),		\
 		    EFX_WORD_0)
+
+#define	MCDI_OUT_WORD_FIELD(_emr, _ofst, _field)			\
+	EFX_WORD_FIELD(*MCDI_OUT2(_emr, efx_word_t, _ofst),		\
+		       MC_CMD_ ## _field)
 
 #define	MCDI_OUT_DWORD(_emr, _ofst)					\
 	EFX_DWORD_FIELD(*MCDI_OUT2(_emr, efx_dword_t, _ofst),		\

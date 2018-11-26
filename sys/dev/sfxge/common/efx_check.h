@@ -226,8 +226,8 @@
 
 /* Support for PHY LED control */
 #if EFSYS_OPT_PHY_LED_CONTROL
-# if !EFSYS_OPT_SIENA
-#  error "PHY_LED_CONTROL requires SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD)
+#  error "PHY_LED_CONTROL requires SIENA or HUNTINGTON or MEDFORD"
 # endif
 #endif /* EFSYS_OPT_PHY_LED_CONTROL */
 
@@ -261,8 +261,8 @@
 
 /* Support PHY statistics */
 #if EFSYS_OPT_PHY_STATS
-# if !EFSYS_OPT_SIENA
-#  error "PHY_STATS requires SIENA"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD)
+#  error "PHY_STATS requires SIENA or HUNTINGTON or MEDFORD"
 # endif
 #endif /* EFSYS_OPT_PHY_STATS */
 
@@ -339,5 +339,18 @@
 # endif
 #endif /* EFSYS_OPT_ALLOW_UNCONFIGURED_NIC */
 
+/* Support packed stream mode */
+#if EFSYS_OPT_RX_PACKED_STREAM
+# if !(EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD)
+#  error "PACKED_STREAM requires HUNTINGTON or MEDFORD"
+# endif
+#endif
+
+/* Support hardware assistance for tunnels */
+#if EFSYS_OPT_TUNNEL
+# if !EFSYS_OPT_MEDFORD
+#  error "TUNNEL requires MEDFORD"
+# endif
+#endif /* EFSYS_OPT_TUNNEL */
 
 #endif /* _SYS_EFX_CHECK_H */
