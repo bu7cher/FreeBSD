@@ -3469,8 +3469,6 @@ uma_zone_reserve(uma_zone_t zone, int items)
 	KEG_LOCK(keg);
 	keg->uk_reserve = items;
 	KEG_UNLOCK(keg);
-
-	return;
 }
 
 /* See uma.h */
