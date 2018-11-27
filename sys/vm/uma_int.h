@@ -315,7 +315,7 @@ typedef struct uma_zone_domain * uma_zone_domain_t;
 struct uma_zone {
 	/* Offset 0, used in alloc/free fast/medium fast path and const. */
 	union {
-		uma_keg_t	uz_keg;		/* This zone keg */
+		uma_keg_t	uz_keg;		/* This zone's keg */
 		struct mtx 	*uz_lockptr;	/* To keg or to self */
 	};
 	struct uma_zone_domain	*uz_domain;	/* per-domain buckets */
