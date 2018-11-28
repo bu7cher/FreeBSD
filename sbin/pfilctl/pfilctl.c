@@ -51,26 +51,47 @@ static void
 listheads(void)
 {
 	struct pfilioc_listheads plh;
+	u_int nheads, nhooks;
+	int i, j, h;
 
 	plh.plh_nheads = 0;
+	plh.plh_nhooks = 0;
 	if (ioctl(dev, PFILIOC_LISTHEADS, &plh) != 0)
 		err(1, "ioctl(PFILIOC_LISTHEADS)");
 
+retry:
 	plh.plh_heads = calloc(plh.plh_nheads, sizeof(struct pfilioc_head));
 	if (plh.plh_heads == NULL)
 		err(1, "malloc");
+	plh.plh_hooks = calloc(plh.plh_nhooks, sizeof(struct pfilioc_hook));
+	if (plh.plh_hooks == NULL)
+		err(1, "malloc");
+
+	nheads = plh.plh_nheads;
+	nhooks = plh.plh_nhooks;
 
 	if (ioctl(dev, PFILIOC_LISTHEADS, &plh) != 0)
 		err(1, "ioctl(PFILIOC_LISTHEADS)");
 
-#define	FMT0	"%16s %8s %3s %3s\n"
-#define	FMT	"%16s %8s %3u %3u\n"
-	printf(FMT0, "Name", "Type", "In", "Out");
-	for (int i = 0; i < plh.plh_nheads; i++)
-		printf(FMT, plh.plh_heads[i].ph_name,
-		    typenames[plh.plh_heads[i].ph_type],
-		    plh.plh_heads[i].ph_nhooksin,
-		    plh.plh_heads[i].ph_nhooksout);
+	if (plh.plh_nheads > nheads || plh.plh_hooks > nhooks) {
+		free(plh.plh_heads);
+		free(plh.plh_hooks);
+		goto retry;
+	}
+
+#define	FMTHD	"%16s %8s\n"
+#define	FMTHK	"%29s %16s %16s\n"
+	printf(FMTHD, "Intercept point", "Type");
+	for (i = 0, h = 0; i < plh.plh_nheads; i++) {
+		printf(FMTHD, plh.plh_heads[i].ph_name,
+		    typenames[plh.plh_heads[i].ph_type]);
+		for (j = 0; j < plh.plh_heads[i].ph_nhooksin; j++, h++)
+			printf(FMTHK, "In", plh.plh_hooks[h].ph_module,
+			    plh.plh_hooks[h].ph_ruleset);
+		for (j = 0; j < plh.plh_heads[i].ph_nhooksout; j++, h++)
+			printf(FMTHK, "Out", plh.plh_hooks[h].ph_module,
+			    plh.plh_hooks[h].ph_ruleset);
+	}
 }
 
 int

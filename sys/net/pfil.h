@@ -49,9 +49,16 @@ struct pfilioc_head {
 	enum pfil_types	ph_type;
 };
 
+struct pfilioc_hook {
+	char		ph_module[IFNAMSIZ];	/* XXX size */
+	char		ph_ruleset[IFNAMSIZ];
+};
+
 struct pfilioc_listheads {
-	int			 plh_nheads;
+	u_int			 plh_nheads;
+	u_int			 plh_nhooks;
 	struct pfilioc_head	*plh_heads;
+	struct pfilioc_hook	*plh_hooks;
 };
 
 #define	PFILDEV			"pfil"

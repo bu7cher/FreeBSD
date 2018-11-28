@@ -178,7 +178,10 @@ pfil_add_hook(struct pfil_args *pa)
 		in->pfil_func = pa->pa_func;
 		in->pfil_ruleset= pa->pa_ruleset;
 		in->pfil_modname = pa->pa_modname;
-		in->pfil_ruleset = pa->pa_ruleset;
+		if (pa->pa_rulname != NULL)
+			in->pfil_rulname = pa->pa_rulname;
+		else
+			in->pfil_rulname = "-";
 	} else
 		in = NULL;
 	if (pa->pa_flags & PFIL_OUT) {
@@ -186,7 +189,10 @@ pfil_add_hook(struct pfil_args *pa)
 		out->pfil_func = pa->pa_func;
 		out->pfil_ruleset= pa->pa_ruleset;
 		out->pfil_modname = pa->pa_modname;
-		out->pfil_ruleset = pa->pa_ruleset;
+		if (pa->pa_rulname != NULL)
+			out->pfil_rulname = pa->pa_rulname;
+		else
+			out->pfil_rulname = "-";
 	} else
 		out = NULL;
 
@@ -341,6 +347,8 @@ VNET_SYSUNINIT(vnet_pfil_uninit, SI_SUB_PROTO_PFIL, SI_ORDER_FIRST,
 /*
  * User control interface.
  */
+static int pfilioc_listheads(struct pfilioc_listheads *);
+
 static int
 pfil_ioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flags,
     struct thread *td)
@@ -349,34 +357,88 @@ pfil_ioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flags,
 
 	error = 0;
 	switch (cmd) {
-	case PFILIOC_LISTHEADS: {
-		struct pfilioc_listheads *req = (struct pfilioc_listheads *)addr;
-		struct pfilioc_head ioch;
-		struct pfil_head *ph;
-		int nheads;
-
-		nheads = 0;
-		PFIL_LOCK();
-		LIST_FOREACH(ph, &V_pfil_head_list, ph_list) {
-			if (++nheads > req->plh_nheads)
-				continue;
-			bcopy(ph->ph_name, ioch.ph_name, sizeof(ioch.ph_name));
-			ioch.ph_nhooksin = ph->ph_nhooksin;
-			ioch.ph_nhooksout = ph->ph_nhooksout;
-			ioch.ph_type = ph->ph_type;
-			error = copyout(&ioch, &req->plh_heads[nheads - 1],
-			    sizeof(ioch));
-			if (error != 0)
-				break;
-		}
-		PFIL_UNLOCK();
-		req->plh_nheads = nheads;
-
+	case PFILIOC_LISTHEADS:
+		error = pfilioc_listheads((struct pfilioc_listheads *)addr);
 		break;
-	}
 	default:
 		return (EINVAL);
 	}
+
+	return (error);
+}
+
+static int
+pfilioc_listheads(struct pfilioc_listheads *req)
+{
+	struct pfil_head *ph;
+	struct pfilioc_head *iohead;
+	struct pfilioc_hook *iohook;
+	struct pfil_hook *pfh;
+	u_int nheads, nhooks, hd, hk;
+	int error;
+
+	PFIL_LOCK();
+restart:
+	nheads = nhooks = 0;
+	LIST_FOREACH(ph, &V_pfil_head_list, ph_list) {
+		nheads++;
+		nhooks += ph->ph_nhooksin + ph->ph_nhooksout;
+	}
+	PFIL_UNLOCK();
+
+	if (req->plh_nheads < nheads || req->plh_nhooks < nhooks) {
+		req->plh_nheads = nheads;
+		req->plh_nhooks = nhooks;
+		return (0);
+	}
+
+	iohead = malloc(sizeof(*iohead) * nheads, M_TEMP, M_WAITOK);
+	iohook = malloc(sizeof(*iohook) * nhooks, M_TEMP, M_WAITOK);
+
+	hd = hk = 0;
+	PFIL_LOCK();
+	LIST_FOREACH(ph, &V_pfil_head_list, ph_list) {
+		if (hd + 1 > nheads ||
+		    hk + ph->ph_nhooksin + ph->ph_nhooksout > nhooks) {
+			/* Configuration changed during malloc(). */
+			free(iohead, M_TEMP);
+			free(iohook, M_TEMP);
+			goto restart;
+		}
+		strlcpy(iohead[hd].ph_name, ph->ph_name,
+			sizeof(iohead[0].ph_name));
+		iohead[hd].ph_nhooksin = ph->ph_nhooksin;
+		iohead[hd].ph_nhooksout = ph->ph_nhooksout;
+		iohead[hd].ph_type = ph->ph_type;
+		CK_STAILQ_FOREACH(pfh, &ph->ph_in, pfil_chain) {
+			strlcpy(iohook[hk].ph_module, pfh->pfil_modname,
+			    sizeof(iohook[0].ph_module));
+			strlcpy(iohook[hk].ph_ruleset, pfh->pfil_rulname,
+			    sizeof(iohook[0].ph_ruleset));
+			hk++;
+		}
+		CK_STAILQ_FOREACH(pfh, &ph->ph_out, pfil_chain) {
+			strlcpy(iohook[hk].ph_module, pfh->pfil_modname,
+			    sizeof(iohook[0].ph_module));
+			strlcpy(iohook[hk].ph_ruleset, pfh->pfil_rulname,
+			    sizeof(iohook[0].ph_ruleset));
+			hk++;
+		}
+		hd++;
+	}
+	PFIL_UNLOCK();
+
+	error = copyout(iohead, req->plh_heads,
+	    sizeof(*iohead) * min(hd, req->plh_nheads));
+	if (error == 0)
+		error = copyout(iohook, req->plh_hooks,
+		    sizeof(*iohook) * min(req->plh_nhooks, hk));
+
+	req->plh_nheads = hd;
+	req->plh_nhooks = hk;
+
+	free(iohead, M_TEMP);
+	free(iohook, M_TEMP);
 
 	return (error);
 }
