@@ -9,7 +9,6 @@
 #include "opt_inet6.h"
 
 #include <sys/param.h>
-#include <sys/dirent.h>
 #include <sys/conf.h>
 #include <sys/errno.h>
 #include <sys/fcntl.h>
