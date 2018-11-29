@@ -51,8 +51,8 @@ static void
 listheads(void)
 {
 	struct pfilioc_listheads plh;
-	u_int nheads, nhooks;
-	int i, j, h;
+	u_int nheads, nhooks, i;
+	int j, h;
 
 	plh.plh_nheads = 0;
 	plh.plh_nhooks = 0;
@@ -73,7 +73,7 @@ retry:
 	if (ioctl(dev, PFILIOC_LISTHEADS, &plh) != 0)
 		err(1, "ioctl(PFILIOC_LISTHEADS)");
 
-	if (plh.plh_nheads > nheads || plh.plh_hooks > nhooks) {
+	if (plh.plh_nheads > nheads || plh.plh_nhooks > nhooks) {
 		free(plh.plh_heads);
 		free(plh.plh_hooks);
 		goto retry;
