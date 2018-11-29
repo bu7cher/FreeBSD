@@ -228,10 +228,10 @@ ip_tryforward(struct mbuf *m)
 	/*
 	 * Run through list of ipfilter hooks for input packets
 	 */
-	if (!PFIL_HOOKED_IN(&V_inet_pfil_hook))
+	if (!PFIL_HOOKED_IN(V_inet_pfil_head))
 		goto passin;
 
-	if (pfil_run_hooks(&V_inet_pfil_hook, &m, m->m_pkthdr.rcvif, PFIL_IN,
+	if (pfil_run_hooks(V_inet_pfil_head, &m, m->m_pkthdr.rcvif, PFIL_IN,
 	    NULL) || m == NULL)
 		goto drop;
 
@@ -320,10 +320,10 @@ passin:
 	/*
 	 * Step 5: outgoing firewall packet processing
 	 */
-	if (!PFIL_HOOKED_OUT(&V_inet_pfil_hook))
+	if (!PFIL_HOOKED_OUT(V_inet_pfil_head))
 		goto passout;
 
-	if (pfil_run_hooks(&V_inet_pfil_hook, &m, nh.nh_ifp,
+	if (pfil_run_hooks(V_inet_pfil_head, &m, nh.nh_ifp,
 	    PFIL_OUT | PFIL_FWD, NULL) || m == NULL) {
 		goto drop;
 	}

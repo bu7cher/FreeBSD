@@ -90,7 +90,7 @@ CTASSERT(sizeof (struct ether_header) == ETHER_ADDR_LEN * 2 + 2);
 CTASSERT(sizeof (struct ether_addr) == ETHER_ADDR_LEN);
 #endif
 
-VNET_DEFINE(struct pfil_head, link_pfil_hook);	/* Packet filter hooks */
+VNET_DEFINE(pfil_head_t, link_pfil_head);	/* Packet filter hooks */
 
 /* netgraph node hooks for ng_ether(4) */
 void	(*ng_ether_input_p)(struct ifnet *ifp, struct mbuf **mp);
@@ -465,8 +465,8 @@ ether_output_frame(struct ifnet *ifp, struct mbuf *m)
 	    !ether_set_pcp(&m, ifp, pcp))
 		return (0);
 
-	if (PFIL_HOOKED_OUT(&V_link_pfil_hook)) {
-		error = pfil_run_hooks(&V_link_pfil_hook, &m, ifp, PFIL_OUT,
+	if (PFIL_HOOKED_OUT(V_link_pfil_head)) {
+		error = pfil_run_hooks(V_link_pfil_head, &m, ifp, PFIL_OUT,
 		    NULL);
 		if (error != 0)
 			return (EACCES);
@@ -737,15 +737,14 @@ SYSINIT(ether, SI_SUB_INIT_IF, SI_ORDER_ANY, ether_init, NULL);
 static void
 vnet_ether_init(__unused void *arg)
 {
-	int i;
+	struct pfil_head_args args;
 
-	/* Initialize packet filter hooks. */
-	sprintf(V_link_pfil_hook.ph_name, "%s", PFIL_ETHER_NAME);
-        V_link_pfil_hook.ph_type = PFIL_TYPE_ETHERNET;
-        V_link_pfil_hook.ph_flags = PFIL_IN | PFIL_OUT;
-	if ((i = pfil_head_register(&V_link_pfil_hook)) != 0)
-		printf("%s: WARNING: unable to register pfil link hook, "
-			"error %d\n", __func__, i);
+	args.pa_version = PFIL_VERSION;
+	args.pa_flags = PFIL_IN | PFIL_OUT;
+	args.pa_type = PFIL_TYPE_ETHERNET;
+	args.pa_headname = PFIL_ETHER_NAME;
+	V_link_pfil_head = pfil_head_register(&args);
+
 #ifdef VIMAGE
 	netisr_register_vnet(&ether_nh);
 #endif
@@ -759,7 +758,7 @@ vnet_ether_pfil_destroy(__unused void *arg)
 {
 	int i;
 
-	if ((i = pfil_head_unregister(&V_link_pfil_hook)) != 0)
+	if ((i = pfil_head_unregister(&V_link_pfil_head)) != 0)
 		printf("%s: WARNING: unable to unregister pfil link hook, "
 			"error %d\n", __func__, i);
 }
@@ -819,8 +818,8 @@ ether_demux(struct ifnet *ifp, struct mbuf *m)
 	KASSERT(ifp != NULL, ("%s: NULL interface pointer", __func__));
 
 	/* Do not grab PROMISC frames in case we are re-entered. */
-	if (PFIL_HOOKED_IN(&V_link_pfil_hook) && !(m->m_flags & M_PROMISC)) {
-		i = pfil_run_hooks(&V_link_pfil_hook, &m, ifp, PFIL_IN, NULL);
+	if (PFIL_HOOKED_IN(V_link_pfil_head) && !(m->m_flags & M_PROMISC)) {
+		i = pfil_run_hooks(V_link_pfil_head, &m, ifp, PFIL_IN, NULL);
 		if (i != 0 || m == NULL)
 			return;
 	}

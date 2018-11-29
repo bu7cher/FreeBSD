@@ -346,8 +346,8 @@ VNET_DECLARE(int, ip6_use_defzone);	/* Whether to use the default scope
 					 * zone when unspecified */
 #define	V_ip6_use_defzone		VNET(ip6_use_defzone)
 
-VNET_DECLARE (struct pfil_head, inet6_pfil_hook);
-#define	V_inet6_pfil_hook	VNET(inet6_pfil_hook)
+VNET_DECLARE(struct pfil_head *, inet6_pfil_head);
+#define	V_inet6_pfil_head	VNET(inet6_pfil_head)
 #define	PFIL_INET6_NAME		"inet6"
 
 #ifdef IPSTEALTH

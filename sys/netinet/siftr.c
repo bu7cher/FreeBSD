@@ -1118,16 +1118,27 @@ ret6:
 }
 #endif /* #ifdef SIFTR_IPV6 */
 
-
+VNET_DEFINE_STATIC(pfil_hook_t, siftr_inet_hook);
+#define	V_siftr_inet_hook	VNET(siftr_inet_hook)
+#ifdef INET6
+VNET_DEFINE_STATIC(pfil_hook_t, siftr_inet6_hook);
+#define	V_siftr_inet6_hook	VNET(siftr_inet6_hook)
+#endif
 static int
 siftr_pfil(int action)
 {
-	struct pfil_args pa;
+	struct pfil_hook_args pha;
+	struct pfil_link_args pla;
 
-	bzero(&pa, sizeof(pa));
-	pa.pa_version = PFIL_VERSION;
-	pa.pa_flags = PFIL_IN | PFIL_OUT;
-	pa.pa_modname = "siftr";
+	pha.pa_version = PFIL_VERSION;
+	pha.pa_flags = PFIL_IN | PFIL_OUT;
+	pha.pa_modname = "siftr";
+	pha.pa_ruleset = NULL;
+	pha.pa_rulname = "default";
+
+	pla.pa_version = PFIL_VERSION;
+	pla.pa_flags = PFIL_IN | PFIL_OUT |
+	    PFIL_HEADPTR | PFIL_HOOKPTR;
 
 	VNET_ITERATOR_DECL(vnet_iter);
 
@@ -1136,26 +1147,24 @@ siftr_pfil(int action)
 		CURVNET_SET(vnet_iter);
 
 		if (action == HOOK) {
-			pa.pa_headname = PFIL_INET_NAME;
-			pa.pa_func = siftr_chkpkt;
-			pa.pa_type = PFIL_TYPE_IP4;
-			pfil_add_hook(&pa);
+			pha.pa_func = siftr_chkpkt;
+			pha.pa_type = PFIL_TYPE_IP4;
+			siftr_inet_hook = pfil_add_hook(&pha);
+			pla.pa_hook = siftr_inet_hook;
+			pla.pa_head = V_inet_pfil_head;
+			(void)pfil_link(&pla);
 #ifdef SIFTR_IPV6
-			pa.pa_headname = PFIL_INET6_NAME;
-			pa.pa_func = siftr_chkpkt6;
-			pa.pa_type = PFIL_TYPE_IP6;
-			pfil_add_hook(&pa);
+			pha.pa_func = siftr_chkpkt6;
+			pha.pa_type = PFIL_TYPE_IP6;
+			siftr_inet6_hook = pfil_add_hook(&pha);
+			pla.pa_hook = siftr_inet6_hook;
+			pla.pa_head = V_inet6_pfil_head;
+			(void)pfil_link(&pla);
 #endif
 		} else if (action == UNHOOK) {
-			pa.pa_headname = PFIL_INET_NAME;
-			pa.pa_func = siftr_chkpkt;
-			pa.pa_type = PFIL_TYPE_IP4;
-			pfil_remove_hook(&pa);
+			pfil_remove_hook(siftr_inet_hook);
 #ifdef SIFTR_IPV6
-			pa.pa_headname = PFIL_INET6_NAME;
-			pa.pa_func = siftr_chkpkt6;
-			pa.pa_type = PFIL_TYPE_IP6;
-			pfil_remove_hook(&pa);
+			pfil_remove_hook(siftr_inet6_hook);
 #endif
 		}
 		CURVNET_RESTORE();

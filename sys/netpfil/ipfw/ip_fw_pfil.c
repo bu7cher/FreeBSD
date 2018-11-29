@@ -506,34 +506,59 @@ ipfw_divert(struct mbuf **m0, int incoming, struct ipfw_rule_ref *rule,
 /*
  * attach or detach hooks for a given protocol family
  */
+VNET_DEFINE_STATIC(pfil_hook_t, ipfw_inet_hook);
+VNET_DEFINE_STATIC(pfil_hook_t, ipfw_inet6_hook);
+VNET_DEFINE_STATIC(pfil_hook_t, ipfw_link_hook);
+#define	V_ipfw_inet_hook	VNET(ipfw_inet_hook)
+#define	V_ipfw_inet6_hook	VNET(ipfw_inet6_hook)
+#define	V_ipfw_link_hook	VNET(ipfw_link_hook)
+
 static int
 ipfw_hook(int onoff, int pf)
 {
-	struct pfil_args pa;
+	struct pfil_hook_args pha;
+	struct pfil_link_args pla;
+	pfil_hook_t *h;
 
-	bzero(&pa, sizeof(pa));
-	pa.pa_version = PFIL_VERSION;
-	pa.pa_flags = PFIL_IN | PFIL_OUT;
-	pa.pa_modname = "ipfw";
+	pha.pa_version = PFIL_VERSION;
+	pha.pa_flags = PFIL_IN | PFIL_OUT;
+	pha.pa_modname = "ipfw";
+	pha.pa_ruleset = NULL;
+
+	pla.pa_version = PFIL_VERSION;
+	pla.pa_flags = PFIL_IN | PFIL_OUT |
+	    PFIL_HEADPTR | PFIL_HOOKPTR;
+
 	switch (pf) {
 	case AF_INET:
-		pa.pa_headname = PFIL_INET_NAME;
-		pa.pa_func = ipfw_check_packet;
-		pa.pa_type = PFIL_TYPE_IP4;
+		pha.pa_func = ipfw_check_packet;
+		pha.pa_type = PFIL_TYPE_IP4;
+		pha.pa_rulname = "default";
+		h = &V_ipfw_inet_hook;
+		pla.pa_head = V_inet_pfil_head;
 		break;
 	case AF_INET6:
-		pa.pa_headname = PFIL_INET6_NAME;
-		pa.pa_func = ipfw_check_packet;
-		pa.pa_type = PFIL_TYPE_IP6;
+		pha.pa_func = ipfw_check_packet;
+		pha.pa_type = PFIL_TYPE_IP6;
+		pha.pa_rulname = "default6";
+		h = &V_ipfw_inet6_hook;
+		pla.pa_head = V_inet6_pfil_head;
 		break;
 	case AF_LINK:
-		pa.pa_headname = PFIL_ETHER_NAME;
-		pa.pa_func = ipfw_check_frame;
-		pa.pa_type = PFIL_TYPE_ETHERNET;
+		pha.pa_func = ipfw_check_frame;
+		pha.pa_type = PFIL_TYPE_ETHERNET;
+		pha.pa_rulname = "default-link";
+		h = &V_ipfw_link_hook;
+		pla.pa_head = V_link_pfil_head;
 		break;
 	}
 
-	(void) (onoff ? pfil_add_hook : pfil_remove_hook)(&pa);
+	if (onoff) {
+		*h = pfil_add_hook(&pha);
+		pla.pa_hook = *h;
+		(void)pfil_link(&pla);
+	} else
+		pfil_remove_hook(*h);
 
 	return 0;
 }

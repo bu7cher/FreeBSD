@@ -4083,37 +4083,71 @@ pf_check6_out(struct mbuf **m, struct ifnet *ifp, int flags,
 }
 #endif /* INET6 */
 
+#ifdef INET
+VNET_DEFINE_STATIC(pfil_hook_t, pf_ip4_in_hook);
+VNET_DEFINE_STATIC(pfil_hook_t, pf_ip4_out_hook);
+#define	V_pf_ip4_in_hook	VNET(pf_ip4_in_hook)
+#define	V_pf_ip4_out_hook	VNET(pf_ip4_out_hook)
+#endif
+#ifdef INET6
+VNET_DEFINE_STATIC(pfil_hook_t, pf_ip6_in_hook);
+VNET_DEFINE_STATIC(pfil_hook_t, pf_ip6_out_hook);
+#define	V_pf_ip6_in_hook	VNET(pf_ip6_in_hook)
+#define	V_pf_ip6_out_hook	VNET(pf_ip6_out_hook)
+#endif
+
 static int
 hook_pf(void)
 {
-	struct pfil_args pa;
+	struct pfil_hook_args pha;
+	struct pfil_link_args pla;
 
 	if (V_pf_pfil_hooked)
 		return (0);
 
-	bzero(&pa, sizeof(pa));
-	pa.pa_version = PFIL_VERSION;
-	pa.pa_modname = "pf";
+	pha.pa_version = PFIL_VERSION;
+	pha.pa_modname = "pf";
+	pha.pa_ruleset = NULL;
+
+	pla.pa_version = PFIL_VERSION;
 
 #ifdef INET
-	pa.pa_headname = PFIL_INET_NAME;
-	pa.pa_type = PFIL_TYPE_IP4;
-	pa.pa_func = pf_check_in;
-	pa.pa_flags = PFIL_IN;
-	pfil_add_hook(&pa);
-	pa.pa_func = pf_check_out;
-	pa.pa_flags = PFIL_OUT;
-	pfil_add_hook(&pa);
+	pha.pa_type = PFIL_TYPE_IP4;
+	pha.pa_func = pf_check_in;
+	pha.pa_flags = PFIL_IN;
+	pha.pa_rulname = "default-in";
+	V_pf_ip4_in_hook = pfil_add_hook(&pha);
+	pla.pa_flags = PFIL_IN | PFIL_HEADPTR | PFIL_HOOKPTR;
+	pla.pa_head = V_inet_pfil_head;
+	pla.pa_hook = V_pf_ip4_in_hook;
+	(void)pfil_link(&pla);
+	pha.pa_func = pf_check_out;
+	pha.pa_flags = PFIL_OUT;
+	pha.pa_rulname = "default-out";
+	V_pf_ip4_out_hook = pfil_add_hook(&pha);
+	pla.pa_flags = PFIL_OUT | PFIL_HEADPTR | PFIL_HOOKPTR;
+	pla.pa_head = V_inet_pfil_head;
+	pla.pa_hook = V_pf_ip4_out_hook;
+	(void)pfil_link(&pla);
 #endif
 #ifdef INET6
-	pa.pa_headname = PFIL_INET6_NAME;
-	pa.pa_type = PFIL_TYPE_IP6;
-	pa.pa_func = pf_check6_in;
-	pa.pa_flags = PFIL_IN;
-	pfil_add_hook(&pa);
-	pa.pa_func = pf_check6_out;
-	pa.pa_flags = PFIL_OUT;
-	pfil_add_hook(&pa);
+	pha.pa_type = PFIL_TYPE_IP6;
+	pha.pa_func = pf_check6_in;
+	pha.pa_flags = PFIL_IN;
+	pha.pa_rulname = "default-in6";
+	V_pf_ip6_in_hook = pfil_add_hook(&pha);
+	pla.pa_flags = PFIL_IN | PFIL_HEADPTR | PFIL_HOOKPTR;
+	pla.pa_head = V_inet6_pfil_head;
+	pla.pa_hook = V_pf_ip6_in_hook;
+	(void)pfil_link(&pla);
+	pha.pa_func = pf_check6_out;
+	pha.pa_rulname = "default-out6";
+	pha.pa_flags = PFIL_OUT;
+	V_pf_ip6_out_hook = pfil_add_hook(&pha);
+	pla.pa_flags = PFIL_OUT | PFIL_HEADPTR | PFIL_HOOKPTR;
+	pla.pa_head = V_inet6_pfil_head;
+	pla.pa_hook = V_pf_ip6_out_hook;
+	(void)pfil_link(&pla);
 #endif
 
 	V_pf_pfil_hooked = 1;
@@ -4123,32 +4157,17 @@ hook_pf(void)
 static int
 dehook_pf(void)
 {
-	struct pfil_args pa;
 
 	if (V_pf_pfil_hooked == 0)
 		return (0);
 
-	bzero(&pa, sizeof(pa));
-	pa.pa_version = PFIL_VERSION;
-	pa.pa_modname = "pf";
-
 #ifdef INET
-	pa.pa_headname = PFIL_INET_NAME;
-	pa.pa_func = pf_check_in;
-	pa.pa_flags = PFIL_IN;
-	pfil_remove_hook(&pa);
-	pa.pa_func = pf_check_out;
-	pa.pa_flags = PFIL_OUT;
-	pfil_remove_hook(&pa);
+	pfil_remove_hook(V_pf_ip4_in_hook);
+	pfil_remove_hook(V_pf_ip4_out_hook);
 #endif
 #ifdef INET6
-	pa.pa_headname = PFIL_INET6_NAME;
-	pa.pa_func = pf_check6_in;
-	pa.pa_flags = PFIL_IN;
-	pfil_remove_hook(&pa);
-	pa.pa_func = pf_check6_out;
-	pa.pa_flags = PFIL_OUT;
-	pfil_remove_hook(&pa);
+	pfil_remove_hook(V_pf_ip6_in_hook);
+	pfil_remove_hook(V_pf_ip6_out_hook);
 #endif
 
 	V_pf_pfil_hooked = 0;

@@ -191,7 +191,7 @@ SYSCTL_PROC(_net_inet6_ip6, IPV6CTL_INTRDQMAXLEN, intr_direct_queue_maxlen,
 
 #endif
 
-VNET_DEFINE(struct pfil_head, inet6_pfil_hook);
+VNET_DEFINE(pfil_head_t, inet6_pfil_head);
 
 VNET_PCPUSTAT_DEFINE(struct ip6stat, ip6stat);
 VNET_PCPUSTAT_SYSINIT(ip6stat);
@@ -214,6 +214,7 @@ static struct mbuf *ip6_pullexthdr(struct mbuf *, size_t, int);
 void
 ip6_init(void)
 {
+	struct pfil_head_args args;
 	struct protosw *pr;
 	int i;
 
@@ -227,12 +228,11 @@ ip6_init(void)
 	    &V_in6_ifaddrhmask);
 
 	/* Initialize packet filter hooks. */
-	sprintf(V_inet6_pfil_hook.ph_name, PFIL_INET6_NAME);
-	V_inet6_pfil_hook.ph_type = PFIL_TYPE_IP6;
-	V_inet6_pfil_hook.ph_flags = PFIL_IN | PFIL_OUT;
-	if ((i = pfil_head_register(&V_inet6_pfil_hook)) != 0)
-		printf("%s: WARNING: unable to register pfil hook, "
-			"error %d\n", __func__, i);
+	args.pa_version = PFIL_VERSION;
+	args.pa_flags = PFIL_IN | PFIL_OUT;
+	args.pa_type = PFIL_TYPE_IP6;
+	args.pa_headname = PFIL_INET6_NAME;
+	V_inet6_pfil_head = pfil_head_register(&args);
 
 	if (hhook_head_register(HHOOK_TYPE_IPSEC_IN, AF_INET6,
 	    &V_ipsec_hhh_in[HHOOK_IPSEC_INET6],
@@ -360,7 +360,7 @@ ip6_destroy(void *unused __unused)
 #endif
 	netisr_unregister_vnet(&ip6_nh);
 
-	if ((error = pfil_head_unregister(&V_inet6_pfil_hook)) != 0)
+	if ((error = pfil_head_unregister(&V_inet6_pfil_head)) != 0)
 		printf("%s: WARNING: unable to unregister pfil hook, "
 		    "error %d\n", __func__, error);
 	error = hhook_head_deregister(V_ipsec_hhh_in[HHOOK_IPSEC_INET6]);
@@ -759,11 +759,11 @@ ip6_input(struct mbuf *m)
 	 */
 
 	/* Jump over all PFIL processing if hooks are not active. */
-	if (!PFIL_HOOKED_IN(&V_inet6_pfil_hook))
+	if (!PFIL_HOOKED_IN(V_inet6_pfil_head))
 		goto passin;
 
 	odst = ip6->ip6_dst;
-	if (pfil_run_hooks(&V_inet6_pfil_hook, &m, m->m_pkthdr.rcvif, PFIL_IN,
+	if (pfil_run_hooks(V_inet6_pfil_head, &m, m->m_pkthdr.rcvif, PFIL_IN,
 	    NULL))
 		return;
 	if (m == NULL)			/* consumed by filter */

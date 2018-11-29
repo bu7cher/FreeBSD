@@ -285,12 +285,12 @@ enc_hhook(int32_t hhook_type, int32_t hhook_id, void *udata, void *ctx_data,
 	switch (hhook_id) {
 #ifdef INET
 	case AF_INET:
-		ph = &V_inet_pfil_hook;
+		ph = V_inet_pfil_head;
 		break;
 #endif
 #ifdef INET6
 	case AF_INET6:
-		ph = &V_inet6_pfil_hook;
+		ph = V_inet6_pfil_head;
 		break;
 #endif
 	default:

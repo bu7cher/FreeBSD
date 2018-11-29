@@ -1231,47 +1231,55 @@ ipf_inject(fin, m)
 	return error;
 }
 
-int ipf_pfil_unhook(void) {
-	struct pfil_args pa;
+VNET_DEFINE_STATIC(pfil_hook_t, ipf_inet_hook);
+VNET_DEFINE_STATIC(pfil_hook_t, ipf_inet6_hook);
+#define	V_ipf_inet_hook		VNET(ipf_inet_hook)
+#define	V_ipf_inet6_hook	VNET(ipf_inet6_hook)
 
-	bzero(&pa, sizeof(pa));
-	pa.pa_version = PFIL_VERSION;
-	pa.pa_flags = PFIL_IN | PFIL_OUT;
-	pa.pa_modname = "ipfilter";
-	pa.pa_headname = PFIL_INET_NAME;
-	pa.pa_func = ipf_check_wrapper;
-	pfil_remove_hook(&pa);
+int ipf_pfil_unhook(void) {
+
+	pfil_remove_hook(ipf_inet_hook);
 
 #ifdef USE_INET6
-	pa.pa_headname = PFIL_INET6_NAME;
-	pa.pa_func = ipf_check_wrapper6;
-	pfil_remove_hook(&pa);
+	pfil_remove_hook(ipf_inet6_hook);
 #endif
 
 	return (0);
 }
 
 int ipf_pfil_hook(void) {
-	struct pfil_args pa;
+	struct pfil_hook_args pha;
+	struct pfil_link_args pla;
 	int error, error6;
 
-	bzero(&pa, sizeof(pa));
-	pa.pa_version = PFIL_VERSION;
-	pa.pa_flags = PFIL_IN | PFIL_OUT;
-	pa.pa_modname = "ipfilter";
-	pa.pa_headname = PFIL_INET_NAME;
-	pa.pa_func = ipf_check_wrapper;
-	pa.pa_type = PFIL_TYPE_IP4;
-
-	error = pfil_add_hook(&pa);
+	pha.pa_version = PFIL_VERSION;
+	pha.pa_flags = PFIL_IN | PFIL_OUT;
+	pha.pa_modname = "ipfilter";
+	pha.pa_rulname = "default";
+	pha.pa_func = ipf_check_wrapper;
+	pha.pa_ruleset = NULL;
+	pha.pa_type = PFIL_TYPE_IP4;
+	V_ipf_inet_hook = pfil_add_hook(&pha);
 
 #ifdef USE_INET6
-	pa.pa_headname = PFIL_INET6_NAME;
-	pa.pa_func = ipf_check_wrapper6;
-	pa.pa_type = PFIL_TYPE_IP6;
+	pha.pa_func = ipf_check_wrapper6;
+	pha.pa_type = PFIL_TYPE_IP6;
+	V_ipf_inet6_hook = pfil_add_hook(&pha);
 #endif
 
-	error6 = pfil_add_hook(&pa);
+	pla.pa_version = PFIL_VERSION;
+	pla.pa_flags = PFIL_IN | PFIL_OUT |
+	    PFIL_HEADPTR | PFIL_HOOKPTR;
+	pla.pa_head = V_inet_pfil_head;
+	pla.pa_hook = V_ipf_inet_hook;
+	error = pfil_link(&pla);
+
+	error6 = 0;
+#ifdef USE_INET6
+	pla.pa_head = V_inet6_pfil_head;
+	pla.pa_hook = V_ipf_inet6_hook;
+	error6 = pfil_link(&pla);
+#endif
 
 	if (error || error6)
 		error = ENODEV;

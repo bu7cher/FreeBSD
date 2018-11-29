@@ -65,68 +65,102 @@ struct pfilioc_listheads {
 #define	PFILIOC_LISTHEADS	_IOWR('P', 1, struct pfilioc_listheads)
 
 #ifdef _KERNEL
-#include <sys/ck.h>
-
 struct mbuf;
 struct ifnet;
 struct inpcb;
 
 typedef	int	(*pfil_func_t)(struct mbuf **, struct ifnet *, int, void *,
 		    struct inpcb *);
-
+/*
+ * Flags for pfil_run_hooks().  Also used in struct pfil_link_args flags.
+ */
 #define PFIL_IN		0x00000001
 #define PFIL_OUT	0x00000002
-#define PFIL_FWD	0x00000008
+#define PFIL_FWD	0x00000004
 #define PFIL_DIR(f)	((f) & (PFIL_IN|PFIL_OUT))
 
 /*
- * A pfil head is created by each protocol or packet intercept point.
- * For packet is then run through the hook chain for inspection.
+ * A pfil head is created by a packet intercept point.
  *
- * (p) - managed by pfil(9)
- * (i) - set by intercept point
+ * A pfil hook is created by a packet filter.
+ *
+ * Hooks are chained on heads.  Historically some hooking happens
+ * automatically, e.g. ipfw(4), pf(4) and ipfilter(4) would register
+ * theirselves on IPv4 and IPv6 input/output.
  */
-struct pfil_hook;
-typedef CK_STAILQ_HEAD(pfil_chain, pfil_hook)	pfil_chain_t;
-struct pfil_head {
-	pfil_chain_t	 ph_in;				/* (p) */
-	pfil_chain_t	 ph_out;			/* (p) */
-	int		 ph_nhooksin;			/* (p) */
-	int		 ph_nhooksout;			/* (p) */
-	int		 ph_flags;			/* (i) */
-	enum pfil_types	 ph_type;			/* (i) */
-	LIST_ENTRY(pfil_head) ph_list;			/* (p) */
-	char		ph_name[IFNAMSIZ];		/* (i) */
-};
+
+typedef struct pfil_hook *	pfil_hook_t;
+typedef struct pfil_head *	pfil_head_t;
 
 /*
- * Argument structure used by firewalls to register themselves.
+ * Give us a chance to modify pfil_xxx_args structures in future.
  */
-struct pfil_args {
+#define	PFIL_VERSION	1
+
+/* Argument structure used by packet filters to register themselves. */
+struct pfil_hook_args {
 	int		 pa_version;
 	int		 pa_flags;
 	enum pfil_types	 pa_type;
-	const char	*pa_headname;
 	pfil_func_t	 pa_func;
 	void		*pa_ruleset;
 	const char	*pa_modname;
 	const char	*pa_rulname;
 };
-#define	PFIL_VERSION	1
 
 /* Public functions for pfil hook management by packet filters. */
-int	pfil_add_hook(struct pfil_args *);
-int	pfil_remove_hook(struct pfil_args *);
+pfil_hook_t	pfil_add_hook(struct pfil_hook_args *);
+void		pfil_remove_hook(pfil_hook_t);
 
-/* Public functions to run the packet inspection by protocols. */
+/* Argument structure used by ioctl() and packet filters to set filters. */
+struct pfil_link_args {
+	int		pa_version;
+	int		pa_flags;
+#define	PFIL_HEADPTR	0x00000010
+#define	PFIL_HOOKPTR	0x00000020
+#define	PFIL_APPEND	0x00000040
+#define	PFIL_UNLINK	0x00000080
+	union {
+		const char	*pa_headname;
+		pfil_head_t	 pa_head;
+	};
+	union {
+		struct {
+			const char	*pa_modname;
+			const char	*pa_rulname;
+		};
+		pfil_hook_t	 pa_hook;
+	};
+};
+
+/* Public function to configure filter chains.  Used by ioctl() and filters. */
+int	pfil_link(struct pfil_link_args *);
+
+/* Argument structure used by inspection points to register themselves. */
+struct pfil_head_args {
+	int		 pa_version;
+	int		 pa_flags;
+	enum pfil_types	 pa_type;
+	const char	*pa_headname;
+};
+
+/* Public functions for pfil head management by inspection points. */
+pfil_head_t	pfil_head_register(struct pfil_head_args *);
+void		pfil_head_unregister(pfil_head_t);
+
+/* Public functions to run the packet inspection by inspection points. */
 int	pfil_run_hooks(struct pfil_head *, struct mbuf **, struct ifnet *, int,
     struct inpcb *inp);
-#define	PFIL_HOOKED_IN(p) ((p)->ph_nhooksin > 0)
-#define	PFIL_HOOKED_OUT(p) ((p)->ph_nhooksout > 0)
-
-/* Public functions for pfil head management by protocols. */
-int	pfil_head_register(struct pfil_head *);
-int	pfil_head_unregister(struct pfil_head *);
+/*
+ * Minimally exposed structure to avoid function call in case of absence
+ * of any filters by protocols and macros to do the check.
+ */
+struct _pfil_head {
+	int	head_nhooksin;
+	int	head_nhooksout;
+};
+#define	PFIL_HOOKED_IN(p) (((struct _pfil_head *)(p))->head_nhooksin > 0)
+#define	PFIL_HOOKED_OUT(p) (((struct _pfil_head *)(p))->head_nhooksout > 0)
 
 #endif /* _KERNEL */
 #endif /* _NET_PFIL_H_ */

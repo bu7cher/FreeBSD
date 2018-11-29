@@ -134,7 +134,7 @@ SYSCTL_INT(_net_inet_ip, OID_AUTO, check_interface, CTLFLAG_VNET | CTLFLAG_RW,
     &VNET_NAME(ip_checkinterface), 0,
     "Verify packet arrives on correct interface");
 
-VNET_DEFINE(struct pfil_head, inet_pfil_hook);	/* Packet filter hooks */
+VNET_DEFINE(pfil_head_t, inet_pfil_head);	/* Packet filter hooks */
 
 static struct netisr_handler ip_nh = {
 	.nh_name = "ip",
@@ -301,6 +301,7 @@ SYSCTL_PROC(_net_inet_ip, IPCTL_INTRDQDROPS, intr_direct_queue_drops,
 void
 ip_init(void)
 {
+	struct pfil_head_args args;
 	struct protosw *pr;
 	int i;
 
@@ -311,12 +312,11 @@ ip_init(void)
 	ipreass_init();
 
 	/* Initialize packet filter hooks. */
-	sprintf(V_inet_pfil_hook.ph_name, PFIL_INET_NAME);
-	V_inet_pfil_hook.ph_type = PFIL_TYPE_IP4;
-	V_inet_pfil_hook.ph_flags = PFIL_IN | PFIL_OUT;
-	if ((i = pfil_head_register(&V_inet_pfil_hook)) != 0)
-		printf("%s: WARNING: unable to register pfil hook, "
-			"error %d\n", __func__, i);
+	args.pa_version = PFIL_VERSION;
+	args.pa_flags = PFIL_IN | PFIL_OUT;
+	args.pa_type = PFIL_TYPE_IP4;
+	args.pa_headname = PFIL_INET_NAME;
+	V_inet_pfil_head = pfil_head_register(&args);
 
 	if (hhook_head_register(HHOOK_TYPE_IPSEC_IN, AF_INET,
 	    &V_ipsec_hhh_in[HHOOK_IPSEC_INET],
@@ -378,7 +378,7 @@ ip_destroy(void *unused __unused)
 #endif
 	netisr_unregister_vnet(&ip_nh);
 
-	if ((error = pfil_head_unregister(&V_inet_pfil_hook)) != 0)
+	if ((error = pfil_head_unregister(V_inet_pfil_head)) != 0)
 		printf("%s: WARNING: unable to unregister pfil hook, "
 		    "error %d\n", __func__, error);
 
@@ -600,11 +600,11 @@ tooshort:
 	 */
 
 	/* Jump over all PFIL processing if hooks are not active. */
-	if (!PFIL_HOOKED_IN(&V_inet_pfil_hook))
+	if (!PFIL_HOOKED_IN(V_inet_pfil_head))
 		goto passin;
 
 	odst = ip->ip_dst;
-	if (pfil_run_hooks(&V_inet_pfil_hook, &m, ifp, PFIL_IN, NULL) != 0)
+	if (pfil_run_hooks(V_inet_pfil_head, &m, ifp, PFIL_IN, NULL) != 0)
 		return;
 	if (m == NULL)			/* consumed by filter */
 		return;
