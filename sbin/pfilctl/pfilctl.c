@@ -108,43 +108,43 @@ listheads(int argc __unused, char *argv[] __unused)
 	u_int nheads, nhooks, i;
 	int j, h;
 
-	plh.plh_nheads = 0;
-	plh.plh_nhooks = 0;
+	plh.pio_nheads = 0;
+	plh.pio_nhooks = 0;
 	if (ioctl(dev, PFILIOC_LISTHEADS, &plh) != 0)
 		err(1, "ioctl(PFILIOC_LISTHEADS)");
 
 retry:
-	plh.plh_heads = calloc(plh.plh_nheads, sizeof(struct pfilioc_head));
-	if (plh.plh_heads == NULL)
+	plh.pio_heads = calloc(plh.pio_nheads, sizeof(struct pfilioc_head));
+	if (plh.pio_heads == NULL)
 		err(1, "malloc");
-	plh.plh_hooks = calloc(plh.plh_nhooks, sizeof(struct pfilioc_hook));
-	if (plh.plh_hooks == NULL)
+	plh.pio_hooks = calloc(plh.pio_nhooks, sizeof(struct pfilioc_hook));
+	if (plh.pio_hooks == NULL)
 		err(1, "malloc");
 
-	nheads = plh.plh_nheads;
-	nhooks = plh.plh_nhooks;
+	nheads = plh.pio_nheads;
+	nhooks = plh.pio_nhooks;
 
 	if (ioctl(dev, PFILIOC_LISTHEADS, &plh) != 0)
 		err(1, "ioctl(PFILIOC_LISTHEADS)");
 
-	if (plh.plh_nheads > nheads || plh.plh_nhooks > nhooks) {
-		free(plh.plh_heads);
-		free(plh.plh_hooks);
+	if (plh.pio_nheads > nheads || plh.pio_nhooks > nhooks) {
+		free(plh.pio_heads);
+		free(plh.pio_hooks);
 		goto retry;
 	}
 
 #define	FMTHD	"%16s %8s\n"
 #define	FMTHK	"%29s %16s %16s\n"
 	printf(FMTHD, "Intercept point", "Type");
-	for (i = 0, h = 0; i < plh.plh_nheads; i++) {
-		printf(FMTHD, plh.plh_heads[i].ph_name,
-		    typenames[plh.plh_heads[i].ph_type]);
-		for (j = 0; j < plh.plh_heads[i].ph_nhooksin; j++, h++)
-			printf(FMTHK, "In", plh.plh_hooks[h].ph_module,
-			    plh.plh_hooks[h].ph_ruleset);
-		for (j = 0; j < plh.plh_heads[i].ph_nhooksout; j++, h++)
-			printf(FMTHK, "Out", plh.plh_hooks[h].ph_module,
-			    plh.plh_hooks[h].ph_ruleset);
+	for (i = 0, h = 0; i < plh.pio_nheads; i++) {
+		printf(FMTHD, plh.pio_heads[i].pio_name,
+		    typenames[plh.pio_heads[i].pio_type]);
+		for (j = 0; j < plh.pio_heads[i].pio_nhooksin; j++, h++)
+			printf(FMTHK, "In", plh.pio_hooks[h].pio_module,
+			    plh.pio_hooks[h].pio_ruleset);
+		for (j = 0; j < plh.pio_heads[i].pio_nhooksout; j++, h++)
+			printf(FMTHK, "Out", plh.pio_hooks[h].pio_module,
+			    plh.pio_hooks[h].pio_ruleset);
 	}
 }
 
@@ -154,29 +154,29 @@ listhooks(int argc __unused, char *argv[] __unused)
 	struct pfilioc_list plh;
 	u_int nhooks, i;
 
-	plh.plh_nhooks = 0;
+	plh.pio_nhooks = 0;
 	if (ioctl(dev, PFILIOC_LISTHEADS, &plh) != 0)
 		err(1, "ioctl(PFILIOC_LISTHEADS)");
 retry:
-	plh.plh_hooks = calloc(plh.plh_nhooks, sizeof(struct pfilioc_hook));
-	if (plh.plh_hooks == NULL)
+	plh.pio_hooks = calloc(plh.pio_nhooks, sizeof(struct pfilioc_hook));
+	if (plh.pio_hooks == NULL)
 		err(1, "malloc");
 
-	nhooks = plh.plh_nhooks;
+	nhooks = plh.pio_nhooks;
 
 	if (ioctl(dev, PFILIOC_LISTHOOKS, &plh) != 0)
 		err(1, "ioctl(PFILIOC_LISTHOOKS)");
 
-	if (plh.plh_nhooks > nhooks) {
-		free(plh.plh_hooks);
+	if (plh.pio_nhooks > nhooks) {
+		free(plh.pio_hooks);
 		goto retry;
 	}
 
 	printf("Available hooks:\n");
-	for (i = 0; i < plh.plh_nhooks; i++) {
-		printf("\t%s:%s %s\n", plh.plh_hooks[i].ph_module,
-		    plh.plh_hooks[i].ph_ruleset,
-		    typenames[plh.plh_hooks[i].ph_type]);
+	for (i = 0; i < plh.pio_nhooks; i++) {
+		printf("\t%s:%s %s\n", plh.pio_hooks[i].pio_module,
+		    plh.pio_hooks[i].pio_ruleset,
+		    typenames[plh.pio_hooks[i].pio_type]);
 	}
 }
 
@@ -188,26 +188,26 @@ hook(int argc, char *argv[])
 	char *ruleset;
 
 	if (argv[0][0] == 'u')
-		req.ph_flags = PFIL_UNLINK;
+		req.pio_flags = PFIL_UNLINK;
 	else
-		req.ph_flags = 0;
+		req.pio_flags = 0;
 
 	while ((c = getopt(argc, argv, "ioa")) != -1)
 		switch (c) {
 		case 'i':
-			req.ph_flags |= PFIL_IN;
+			req.pio_flags |= PFIL_IN;
 			break;
 		case 'o':
-			req.ph_flags |= PFIL_OUT;
+			req.pio_flags |= PFIL_OUT;
 			break;
 		case 'a':
-			req.ph_flags |= PFIL_APPEND;
+			req.pio_flags |= PFIL_APPEND;
 			break;
 		default:
 			help();
 		}
 
-	if (!PFIL_DIR(req.ph_flags))
+	if (!PFIL_DIR(req.pio_flags))
 		help();
 
 	argc -= optind;
@@ -222,9 +222,9 @@ hook(int argc, char *argv[])
 	*ruleset = '\0';
 	ruleset++;
 
-	strlcpy(req.ph_name, argv[1], sizeof(req.ph_name));
-	strlcpy(req.ph_module, argv[0], sizeof(req.ph_module));
-	strlcpy(req.ph_ruleset, ruleset, sizeof(req.ph_ruleset));
+	strlcpy(req.pio_name, argv[1], sizeof(req.pio_name));
+	strlcpy(req.pio_module, argv[0], sizeof(req.pio_module));
+	strlcpy(req.pio_ruleset, ruleset, sizeof(req.pio_ruleset));
 
 	if (ioctl(dev, PFILIOC_LINK, &req) != 0)
 		err(1, "ioctl(PFILIOC_LINK)");

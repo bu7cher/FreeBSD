@@ -509,9 +509,9 @@ restart:
 	}
 	PFIL_UNLOCK();
 
-	if (req->plh_nheads < nheads || req->plh_nhooks < nhooks) {
-		req->plh_nheads = nheads;
-		req->plh_nhooks = nhooks;
+	if (req->pio_nheads < nheads || req->pio_nhooks < nhooks) {
+		req->pio_nheads = nheads;
+		req->pio_nhooks = nhooks;
 		return (0);
 	}
 
@@ -528,41 +528,41 @@ restart:
 			free(iohook, M_TEMP);
 			goto restart;
 		}
-		strlcpy(iohead[hd].ph_name, head->head_name,
-			sizeof(iohead[0].ph_name));
-		iohead[hd].ph_nhooksin = head->head_nhooksin;
-		iohead[hd].ph_nhooksout = head->head_nhooksout;
-		iohead[hd].ph_type = head->head_type;
+		strlcpy(iohead[hd].pio_name, head->head_name,
+			sizeof(iohead[0].pio_name));
+		iohead[hd].pio_nhooksin = head->head_nhooksin;
+		iohead[hd].pio_nhooksout = head->head_nhooksout;
+		iohead[hd].pio_type = head->head_type;
 		CK_STAILQ_FOREACH(link, &head->head_in, link_chain) {
-			strlcpy(iohook[hk].ph_module,
+			strlcpy(iohook[hk].pio_module,
 			    link->link_hook->hook_modname,
-			    sizeof(iohook[0].ph_module));
-			strlcpy(iohook[hk].ph_ruleset,
+			    sizeof(iohook[0].pio_module));
+			strlcpy(iohook[hk].pio_ruleset,
 			    link->link_hook->hook_rulname,
-			    sizeof(iohook[0].ph_ruleset));
+			    sizeof(iohook[0].pio_ruleset));
 			hk++;
 		}
 		CK_STAILQ_FOREACH(link, &head->head_out, link_chain) {
-			strlcpy(iohook[hk].ph_module,
+			strlcpy(iohook[hk].pio_module,
 			    link->link_hook->hook_modname,
-			    sizeof(iohook[0].ph_module));
-			strlcpy(iohook[hk].ph_ruleset,
+			    sizeof(iohook[0].pio_module));
+			strlcpy(iohook[hk].pio_ruleset,
 			    link->link_hook->hook_rulname,
-			    sizeof(iohook[0].ph_ruleset));
+			    sizeof(iohook[0].pio_ruleset));
 			hk++;
 		}
 		hd++;
 	}
 	PFIL_UNLOCK();
 
-	error = copyout(iohead, req->plh_heads,
-	    sizeof(*iohead) * min(hd, req->plh_nheads));
+	error = copyout(iohead, req->pio_heads,
+	    sizeof(*iohead) * min(hd, req->pio_nheads));
 	if (error == 0)
-		error = copyout(iohook, req->plh_hooks,
-		    sizeof(*iohook) * min(req->plh_nhooks, hk));
+		error = copyout(iohook, req->pio_hooks,
+		    sizeof(*iohook) * min(req->pio_nhooks, hk));
 
-	req->plh_nheads = hd;
-	req->plh_nhooks = hk;
+	req->pio_nheads = hd;
+	req->pio_nhooks = hk;
 
 	free(iohead, M_TEMP);
 	free(iohook, M_TEMP);
@@ -585,8 +585,8 @@ restart:
 		nhooks++;
 	PFIL_UNLOCK();
 
-	if (req->plh_nhooks < nhooks) {
-		req->plh_nhooks = nhooks;
+	if (req->pio_nhooks < nhooks) {
+		req->pio_nhooks = nhooks;
 		return (0);
 	}
 
@@ -600,19 +600,19 @@ restart:
 			free(iohook, M_TEMP);
 			goto restart;
 		}
-		strlcpy(iohook[hk].ph_module, hook->hook_modname,
-		    sizeof(iohook[0].ph_module));
-		strlcpy(iohook[hk].ph_ruleset, hook->hook_rulname,
-		    sizeof(iohook[0].ph_ruleset));
-		iohook[hk].ph_type = hook->hook_type;
-		iohook[hk].ph_flags = hook->hook_flags;
+		strlcpy(iohook[hk].pio_module, hook->hook_modname,
+		    sizeof(iohook[0].pio_module));
+		strlcpy(iohook[hk].pio_ruleset, hook->hook_rulname,
+		    sizeof(iohook[0].pio_ruleset));
+		iohook[hk].pio_type = hook->hook_type;
+		iohook[hk].pio_flags = hook->hook_flags;
 		hk++;
 	}
 	PFIL_UNLOCK();
 
-	error = copyout(iohook, req->plh_hooks,
-	    sizeof(*iohook) * min(req->plh_nhooks, hk));
-	req->plh_nhooks = hk;
+	error = copyout(iohook, req->pio_hooks,
+	    sizeof(*iohook) * min(req->pio_nhooks, hk));
+	req->pio_nhooks = hk;
 	free(iohook, M_TEMP);
 
 	return (error);
@@ -623,14 +623,14 @@ pfilioc_link(struct pfilioc_link *req)
 {
 	struct pfil_link_args args;
 
-	if (req->ph_flags & ~(PFIL_IN | PFIL_OUT | PFIL_UNLINK | PFIL_APPEND))
+	if (req->pio_flags & ~(PFIL_IN | PFIL_OUT | PFIL_UNLINK | PFIL_APPEND))
 		return (EINVAL);
 
 	args.pa_version = PFIL_VERSION;
-	args.pa_flags = req->ph_flags;
-	args.pa_headname = req->ph_name;
-	args.pa_modname = req->ph_module;
-	args.pa_rulname = req->ph_ruleset;
+	args.pa_flags = req->pio_flags;
+	args.pa_headname = req->pio_name;
+	args.pa_modname = req->pio_module;
+	args.pa_rulname = req->pio_ruleset;
 
 	return (pfil_link(&args));
 }

@@ -43,31 +43,31 @@ enum pfil_types {
 };
 
 struct pfilioc_head {
-	char		ph_name[IFNAMSIZ];
-	int		ph_nhooksin;
-	int		ph_nhooksout;
-	enum pfil_types	ph_type;
+	char		pio_name[IFNAMSIZ];
+	int		pio_nhooksin;
+	int		pio_nhooksout;
+	enum pfil_types	pio_type;
 };
 
 struct pfilioc_hook {
-	char		ph_module[IFNAMSIZ];	/* XXX size */
-	char		ph_ruleset[IFNAMSIZ];
-	int		ph_flags;
-	enum pfil_types ph_type;
+	char		pio_module[IFNAMSIZ];	/* XXX size */
+	char		pio_ruleset[IFNAMSIZ];
+	int		pio_flags;
+	enum pfil_types pio_type;
 };
 
 struct pfilioc_list {
-	u_int			 plh_nheads;
-	u_int			 plh_nhooks;
-	struct pfilioc_head	*plh_heads;
-	struct pfilioc_hook	*plh_hooks;
+	u_int			 pio_nheads;
+	u_int			 pio_nhooks;
+	struct pfilioc_head	*pio_heads;
+	struct pfilioc_hook	*pio_hooks;
 };
 
 struct pfilioc_link {
-	char		ph_name[IFNAMSIZ];
-	char		ph_module[IFNAMSIZ];
-	char		ph_ruleset[IFNAMSIZ];
-	int		ph_flags;
+	char		pio_name[IFNAMSIZ];
+	char		pio_module[IFNAMSIZ];
+	char		pio_ruleset[IFNAMSIZ];
+	int		pio_flags;
 };
 
 #define	PFILDEV			"pfil"
