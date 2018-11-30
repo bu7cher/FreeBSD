@@ -305,7 +305,7 @@ pfil_link(struct pfil_link_args *pa)
 		return (pfil_unlink(pa, head, hook));
 
 	if (head->head_type != hook->hook_type ||
-	    (hook->hook_flags & ~head->head_flags)) {
+	    ((hook->hook_flags & pa->pa_flags) & ~head->head_flags)) {
 		error = EINVAL;
 		goto fail;
 	}
