@@ -63,9 +63,26 @@ struct pfilioc_list {
 	struct pfilioc_hook	*plh_hooks;
 };
 
+struct pfilioc_link {
+	char		ph_name[IFNAMSIZ];
+	char		ph_module[IFNAMSIZ];
+	char		ph_ruleset[IFNAMSIZ];
+	int		ph_flags;
+};
+
 #define	PFILDEV			"pfil"
 #define	PFILIOC_LISTHEADS	_IOWR('P', 1, struct pfilioc_list)
 #define	PFILIOC_LISTHOOKS	_IOWR('P', 2, struct pfilioc_list)
+#define	PFILIOC_LINK		_IOW('P', 3, struct pfilioc_link)
+
+#define PFIL_IN		0x00000001
+#define PFIL_OUT	0x00000002
+#define PFIL_FWD	0x00000004
+#define PFIL_DIR(f)	((f) & (PFIL_IN|PFIL_OUT))
+#define	PFIL_HEADPTR	0x00000010
+#define	PFIL_HOOKPTR	0x00000020
+#define	PFIL_APPEND	0x00000040
+#define	PFIL_UNLINK	0x00000080
 
 #ifdef _KERNEL
 struct mbuf;
@@ -74,14 +91,6 @@ struct inpcb;
 
 typedef	int	(*pfil_func_t)(struct mbuf **, struct ifnet *, int, void *,
 		    struct inpcb *);
-/*
- * Flags for pfil_run_hooks().  Also used in struct pfil_link_args flags.
- */
-#define PFIL_IN		0x00000001
-#define PFIL_OUT	0x00000002
-#define PFIL_FWD	0x00000004
-#define PFIL_DIR(f)	((f) & (PFIL_IN|PFIL_OUT))
-
 /*
  * A pfil head is created by a packet intercept point.
  *
@@ -119,10 +128,6 @@ void		pfil_remove_hook(pfil_hook_t);
 struct pfil_link_args {
 	int		pa_version;
 	int		pa_flags;
-#define	PFIL_HEADPTR	0x00000010
-#define	PFIL_HOOKPTR	0x00000020
-#define	PFIL_APPEND	0x00000040
-#define	PFIL_UNLINK	0x00000080
 	union {
 		const char	*pa_headname;
 		pfil_head_t	 pa_head;

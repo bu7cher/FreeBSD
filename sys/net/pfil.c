@@ -465,6 +465,7 @@ VNET_SYSUNINIT(vnet_pfil_uninit, SI_SUB_PROTO_PFIL, SI_ORDER_FIRST,
  */
 static int pfilioc_listheads(struct pfilioc_list *);
 static int pfilioc_listhooks(struct pfilioc_list *);
+static int pfilioc_link(struct pfilioc_link *);
 
 static int
 pfil_ioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flags,
@@ -480,6 +481,8 @@ pfil_ioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flags,
 	case PFILIOC_LISTHOOKS:
 		error = pfilioc_listhooks((struct pfilioc_list *)addr);
 		break;
+	case PFILIOC_LINK:
+		error = pfilioc_link((struct pfilioc_link *)addr);
 	default:
 		return (EINVAL);
 	}
@@ -613,4 +616,21 @@ restart:
 	free(iohook, M_TEMP);
 
 	return (error);
+}
+
+static int
+pfilioc_link(struct pfilioc_link *req)
+{
+	struct pfil_link_args args;
+
+	if (req->ph_flags & ~(PFIL_IN | PFIL_OUT | PFIL_UNLINK | PFIL_APPEND))
+		return (EINVAL);
+
+	args.pa_version = PFIL_VERSION;
+	args.pa_flags = req->ph_flags;
+	args.pa_headname = req->ph_name;
+	args.pa_modname = req->ph_module;
+	args.pa_rulname = req->ph_ruleset;
+
+	return (pfil_link(&args));
 }

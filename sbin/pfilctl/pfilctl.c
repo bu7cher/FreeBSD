@@ -38,6 +38,10 @@ __FBSDID("$FreeBSD$");
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+static int dev;
 
 static const char * const typenames[] = {
 	[PFIL_TYPE_IP4] = "IPv4",
@@ -45,10 +49,60 @@ static const char * const typenames[] = {
 	[PFIL_TYPE_ETHERNET] = "Ethernet",
 };
 
-static int dev;
+static void listheads(int argc, char *argv[]);
+static void listhooks(int argc, char *argv[]);
+static void hook(int argc, char *argv[]);
+static void help(void);
+
+static const struct cmd {
+	const char	*cmd_name;
+	void		(*cmd_func)(int argc, char *argv[]);
+} cmds[] = {
+	{ "heads",	listheads },
+	{ "hooks",	listhooks },
+	{ "link",	hook },
+	{ "unlink",	hook },
+	{ NULL,		NULL },
+};
+
+int
+main(int argc __unused, char *argv[] __unused)
+{
+	int cmd = -1;
+
+	if (--argc == 0)
+		help();
+	argv++;
+
+	for (int i = 0; cmds[i].cmd_name != NULL; i++)
+		if (!strncmp(argv[0], cmds[i].cmd_name, strlen(argv[0]))) {
+			if (cmd != -1)
+				errx(1, "ambiguous command: %s", argv[0]);
+			cmd = i;
+		}
+	if (cmd == -1)
+		errx(1, "unknown command: %s", argv[0]);
+
+	dev = open("/dev/" PFILDEV, O_RDWR);
+	if (dev == -1)
+		err(1, "open(%s)", "/dev/" PFILDEV);
+
+	(*cmds[cmd].cmd_func)(argc, argv);
+
+	return (0);
+}
+
+static void 
+help(void) 
+{
+	extern char *__progname;
+
+	fprintf(stderr, "usage: %s (heads|hooks|link|unlink)\n", __progname);
+	exit(0);
+}
 
 static void
-listheads(void)
+listheads(int argc __unused, char *argv[] __unused)
 {
 	struct pfilioc_list plh;
 	u_int nheads, nhooks, i;
@@ -95,7 +149,7 @@ retry:
 }
 
 static void
-listhooks(void)
+listhooks(int argc __unused, char *argv[] __unused)
 {
 	struct pfilioc_list plh;
 	u_int nhooks, i;
@@ -126,17 +180,52 @@ retry:
 	}
 }
 
-int
-main(int argc __unused, char *argv[] __unused)
+static void
+hook(int argc, char *argv[])
 {
+	struct pfilioc_link req;
+	int c;
+	char *ruleset;
 
-	dev = open("/dev/" PFILDEV, O_RDWR);
-	if (dev == -1)
-		err(1, "open(%s)", "/dev/" PFILDEV);
+	if (argv[0][0] == 'u')
+		req.ph_flags = PFIL_UNLINK;
+	else
+		req.ph_flags = 0;
 
-	listheads();
+	while ((c = getopt(argc, argv, "ioa")) != -1)
+		switch (c) {
+		case 'i':
+			req.ph_flags |= PFIL_IN;
+			break;
+		case 'o':
+			req.ph_flags |= PFIL_OUT;
+			break;
+		case 'a':
+			req.ph_flags |= PFIL_APPEND;
+			break;
+		default:
+			help();
+		}
 
-	listhooks();
+	if (!PFIL_DIR(req.ph_flags))
+		help();
 
-	return (0);
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 2)
+		help();
+
+	/* link mod:ruleset head */
+	if ((ruleset = strchr(argv[0], ':')) == NULL)
+		help();
+	*ruleset = '\0';
+	ruleset++;
+
+	strlcpy(req.ph_name, argv[1], sizeof(req.ph_name));
+	strlcpy(req.ph_module, argv[0], sizeof(req.ph_module));
+	strlcpy(req.ph_ruleset, ruleset, sizeof(req.ph_ruleset));
+
+	if (ioctl(dev, PFILIOC_LINK, &req) != 0)
+		err(1, "ioctl(PFILIOC_LINK)");
 }
