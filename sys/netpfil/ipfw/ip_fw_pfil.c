@@ -558,7 +558,8 @@ ipfw_hook(int onoff, int pf)
 		pla.pa_hook = *h;
 		(void)pfil_link(&pla);
 	} else
-		pfil_remove_hook(*h);
+		if (*h != NULL)
+			pfil_remove_hook(*h);
 
 	return 0;
 }
