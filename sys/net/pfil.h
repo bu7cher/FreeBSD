@@ -52,9 +52,11 @@ struct pfilioc_head {
 struct pfilioc_hook {
 	char		ph_module[IFNAMSIZ];	/* XXX size */
 	char		ph_ruleset[IFNAMSIZ];
+	int		ph_flags;
+	enum pfil_types ph_type;
 };
 
-struct pfilioc_listheads {
+struct pfilioc_list {
 	u_int			 plh_nheads;
 	u_int			 plh_nhooks;
 	struct pfilioc_head	*plh_heads;
@@ -62,7 +64,8 @@ struct pfilioc_listheads {
 };
 
 #define	PFILDEV			"pfil"
-#define	PFILIOC_LISTHEADS	_IOWR('P', 1, struct pfilioc_listheads)
+#define	PFILIOC_LISTHEADS	_IOWR('P', 1, struct pfilioc_list)
+#define	PFILIOC_LISTHOOKS	_IOWR('P', 2, struct pfilioc_list)
 
 #ifdef _KERNEL
 struct mbuf;

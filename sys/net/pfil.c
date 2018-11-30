@@ -463,7 +463,8 @@ VNET_SYSUNINIT(vnet_pfil_uninit, SI_SUB_PROTO_PFIL, SI_ORDER_FIRST,
 /*
  * User control interface.
  */
-static int pfilioc_listheads(struct pfilioc_listheads *);
+static int pfilioc_listheads(struct pfilioc_list *);
+static int pfilioc_listhooks(struct pfilioc_list *);
 
 static int
 pfil_ioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flags,
@@ -474,7 +475,10 @@ pfil_ioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flags,
 	error = 0;
 	switch (cmd) {
 	case PFILIOC_LISTHEADS:
-		error = pfilioc_listheads((struct pfilioc_listheads *)addr);
+		error = pfilioc_listheads((struct pfilioc_list *)addr);
+		break;
+	case PFILIOC_LISTHOOKS:
+		error = pfilioc_listhooks((struct pfilioc_list *)addr);
 		break;
 	default:
 		return (EINVAL);
@@ -484,7 +488,7 @@ pfil_ioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flags,
 }
 
 static int
-pfilioc_listheads(struct pfilioc_listheads *req)
+pfilioc_listheads(struct pfilioc_list *req)
 {
 	struct pfil_head *head;
 	struct pfil_link *link;
@@ -558,6 +562,54 @@ restart:
 	req->plh_nhooks = hk;
 
 	free(iohead, M_TEMP);
+	free(iohook, M_TEMP);
+
+	return (error);
+}
+
+static int
+pfilioc_listhooks(struct pfilioc_list *req)
+{
+	struct pfil_hook *hook;
+	struct pfilioc_hook *iohook;
+	u_int nhooks, hk;
+	int error;
+
+	PFIL_LOCK();
+restart:
+	nhooks = 0;
+	LIST_FOREACH(hook, &V_pfil_hook_list, hook_list)
+		nhooks++;
+	PFIL_UNLOCK();
+
+	if (req->plh_nhooks < nhooks) {
+		req->plh_nhooks = nhooks;
+		return (0);
+	}
+
+	iohook = malloc(sizeof(*iohook) * nhooks, M_TEMP, M_WAITOK);
+
+	hk = 0;
+	PFIL_LOCK();
+	LIST_FOREACH(hook, &V_pfil_hook_list, hook_list) {
+		if (hk + 1 > nhooks) {
+			/* Configuration changed during malloc(). */
+			free(iohook, M_TEMP);
+			goto restart;
+		}
+		strlcpy(iohook[hk].ph_module, hook->hook_modname,
+		    sizeof(iohook[0].ph_module));
+		strlcpy(iohook[hk].ph_ruleset, hook->hook_rulname,
+		    sizeof(iohook[0].ph_ruleset));
+		iohook[hk].ph_type = hook->hook_type;
+		iohook[hk].ph_flags = hook->hook_flags;
+		hk++;
+	}
+	PFIL_UNLOCK();
+
+	error = copyout(iohook, req->plh_hooks,
+	    sizeof(*iohook) * min(req->plh_nhooks, hk));
+	req->plh_nhooks = hk;
 	free(iohook, M_TEMP);
 
 	return (error);

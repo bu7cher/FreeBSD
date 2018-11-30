@@ -50,7 +50,7 @@ static int dev;
 static void
 listheads(void)
 {
-	struct pfilioc_listheads plh;
+	struct pfilioc_list plh;
 	u_int nheads, nhooks, i;
 	int j, h;
 
@@ -94,6 +94,38 @@ retry:
 	}
 }
 
+static void
+listhooks(void)
+{
+	struct pfilioc_list plh;
+	u_int nhooks, i;
+
+	plh.plh_nhooks = 0;
+	if (ioctl(dev, PFILIOC_LISTHEADS, &plh) != 0)
+		err(1, "ioctl(PFILIOC_LISTHEADS)");
+retry:
+	plh.plh_hooks = calloc(plh.plh_nhooks, sizeof(struct pfilioc_hook));
+	if (plh.plh_hooks == NULL)
+		err(1, "malloc");
+
+	nhooks = plh.plh_nhooks;
+
+	if (ioctl(dev, PFILIOC_LISTHOOKS, &plh) != 0)
+		err(1, "ioctl(PFILIOC_LISTHOOKS)");
+
+	if (plh.plh_nhooks > nhooks) {
+		free(plh.plh_hooks);
+		goto retry;
+	}
+
+	printf("Available hooks:\n");
+	for (i = 0; i < plh.plh_nhooks; i++) {
+		printf("\t%s:%s %s\n", plh.plh_hooks[i].ph_module,
+		    plh.plh_hooks[i].ph_ruleset,
+		    typenames[plh.plh_hooks[i].ph_type]);
+	}
+}
+
 int
 main(int argc __unused, char *argv[] __unused)
 {
@@ -103,6 +135,8 @@ main(int argc __unused, char *argv[] __unused)
 		err(1, "open(%s)", "/dev/" PFILDEV);
 
 	listheads();
+
+	listhooks();
 
 	return (0);
 }
