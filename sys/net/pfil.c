@@ -483,6 +483,7 @@ pfil_ioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flags,
 		break;
 	case PFILIOC_LINK:
 		error = pfilioc_link((struct pfilioc_link *)addr);
+		break;
 	default:
 		return (EINVAL);
 	}
