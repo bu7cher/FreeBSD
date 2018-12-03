@@ -1238,10 +1238,10 @@ VNET_DEFINE_STATIC(pfil_hook_t, ipf_inet6_hook);
 
 int ipf_pfil_unhook(void) {
 
-	pfil_remove_hook(ipf_inet_hook);
+	pfil_remove_hook(V_ipf_inet_hook);
 
 #ifdef USE_INET6
-	pfil_remove_hook(ipf_inet6_hook);
+	pfil_remove_hook(V_ipf_inet6_hook);
 #endif
 
 	return (0);
