@@ -3602,7 +3602,7 @@ uma_zone_exhausted(uma_zone_t zone)
 	int full;
 
 	ZONE_LOCK(zone);
-	full = (zone->uz_sleepers > 0);
+	full = zone->uz_sleepers > 0;
 	ZONE_UNLOCK(zone);
 	return (full);	
 }
