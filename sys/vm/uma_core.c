@@ -2489,14 +2489,6 @@ zalloc_start:
 	if (lockfail && zone->uz_count < zone->uz_count_max)
 		zone->uz_count++;
 
-	/*
-	 * Short-circuit if we can't allocate more buckets.
-	 */
-	if (zone->uz_bktcount >= zone->uz_bktmax) {
-		ZONE_UNLOCK(zone);
-		goto zalloc_item;
-	}
-
 	if (zone->uz_maxitems) {
 		if (zone->uz_items >= zone->uz_maxitems) {
 			zone_log_warning(zone);
