@@ -2913,7 +2913,6 @@ zone_alloc_item(uma_zone_t zone, void *udata, int domain, int flags)
 		if (VM_DOMAIN_EMPTY(domain))
 			domain = UMA_ANYDOMAIN;
 	}
-	item = NULL;
 	if (zone->uz_import(zone->uz_arg, &item, 1, domain, flags) != 1)
 		goto fail;
 
