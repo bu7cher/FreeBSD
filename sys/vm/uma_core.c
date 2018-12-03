@@ -2316,7 +2316,7 @@ uma_zalloc_arg(uma_zone_t zone, void *udata, int flags)
 	uma_bucket_t bucket;
 	uma_cache_t cache;
 	void *item;
-	int cpu, domain, lockfail, max;
+	int cpu, domain, lockfail, maxbucket;
 #ifdef INVARIANTS
 	bool skipdbg;
 #endif
@@ -2514,10 +2514,11 @@ zalloc_start:
 				goto zalloc_restart;
 			}
 		}
-		max = MIN(zone->uz_count, zone->uz_maxitems - zone->uz_items);
+		maxbucket = MIN(zone->uz_count,
+		    zone->uz_maxitems - zone->uz_items);
 	} else
-		max = zone->uz_count;
-	zone->uz_items += max;
+		maxbucket = zone->uz_count;
+	zone->uz_items += maxbucket;
 	if (zone->uz_sleepers && zone->uz_items < zone->uz_maxitems)
 		wakeup_one(zone);
 	ZONE_UNLOCK(zone);
@@ -2527,13 +2528,13 @@ zalloc_start:
 	 * works we'll restart the allocation from the beginning and it
 	 * will use the just filled bucket.
 	 */
-	bucket = zone_alloc_bucket(zone, udata, domain, flags, max);
+	bucket = zone_alloc_bucket(zone, udata, domain, flags, maxbucket);
 	CTR3(KTR_UMA, "uma_zalloc: zone %s(%p) bucket zone returned %p",
 	    zone->uz_name, zone, bucket);
 	ZONE_LOCK(zone);
 	if (bucket != NULL) {
-		if (bucket->ub_cnt < max)
-			zone->uz_items -= max - bucket->ub_cnt;
+		if (bucket->ub_cnt < maxbucket)
+			zone->uz_items -= maxbucket - bucket->ub_cnt;
 		critical_enter();
 		cpu = curcpu;
 		cache = &zone->uz_cpu[cpu];
@@ -2559,7 +2560,7 @@ zalloc_start:
 		ZONE_UNLOCK(zone);
 		goto zalloc_start;
 	} else
-		zone->uz_items -= max;
+		zone->uz_items -= maxbucket;
 	ZONE_UNLOCK(zone);
 
 	/*
