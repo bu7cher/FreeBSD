@@ -730,7 +730,6 @@ bucket_drain(uma_zone_t zone, uma_bucket_t bucket)
 			zone->uz_fini(bucket->ub_bucket[i], zone->uz_size);
 	zone->uz_release(zone->uz_arg, bucket->ub_bucket, bucket->ub_cnt);
 	ZONE_LOCK(zone);
-	zone->uz_frees++;
 	zone->uz_items -= bucket->ub_cnt;
 	if (zone->uz_sleepers && zone->uz_items < zone->uz_maxitems)
 		wakeup_one(zone);
