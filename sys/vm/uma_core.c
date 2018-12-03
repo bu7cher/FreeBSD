@@ -2525,8 +2525,10 @@ zalloc_start:
 	    zone->uz_name, zone, bucket);
 	ZONE_LOCK(zone);
 	if (bucket != NULL) {
-		if (bucket->ub_cnt < maxbucket)
+		if (bucket->ub_cnt < maxbucket) {
+			MPASS(zone->uz_items >= maxbucket - bucket->ub_cnt);
 			zone->uz_items -= maxbucket - bucket->ub_cnt;
+		}
 		critical_enter();
 		cpu = curcpu;
 		cache = &zone->uz_cpu[cpu];
