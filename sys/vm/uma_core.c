@@ -261,6 +261,7 @@ static void bucket_init(void);
 static uma_bucket_t bucket_alloc(uma_zone_t zone, void *, int);
 static void bucket_free(uma_zone_t zone, uma_bucket_t, void *);
 static void bucket_zone_drain(void);
+static uma_bucket_t zone_alloc_bucket(uma_zone_t, void *, int, int, int);
 static uma_slab_t zone_fetch_slab(uma_zone_t, uma_keg_t, int, int);
 static void *slab_alloc_item(uma_keg_t keg, uma_slab_t slab);
 static void slab_free_item(uma_zone_t zone, uma_slab_t slab, void *item);
@@ -2526,65 +2527,13 @@ zalloc_start:
 	 * works we'll restart the allocation from the beginning and it
 	 * will use the just filled bucket.
 	 */
-	/* Don't wait for buckets, preserve caller's NOVM setting. */
-	bucket = bucket_alloc(zone, udata, M_NOWAIT | (flags & M_NOVM));
-	if (bucket == NULL) {
-		ZONE_LOCK(zone);
-		zone->uz_items -= max;
-		ZONE_UNLOCK(zone);
-		goto zalloc_item;
-	}
-
-	bucket->ub_cnt = zone->uz_import(zone->uz_arg, bucket->ub_bucket,
-	    MIN(bucket->ub_entries, max), domain, flags);
-
-	/*
-	 * Initialize the memory if necessary.
-	 */
-	if (bucket->ub_cnt != 0 && zone->uz_init != NULL) {
-		int i;
-
-		for (i = 0; i < bucket->ub_cnt; i++)
-			if (zone->uz_init(bucket->ub_bucket[i], zone->uz_size,
-			    flags) != 0)
-				break;
-		/*
-		 * If we couldn't initialize the whole bucket, put the
-		 * rest back onto the freelist.
-		 */
-		if (i != bucket->ub_cnt) {
-			zone->uz_release(zone->uz_arg, &bucket->ub_bucket[i],
-			    bucket->ub_cnt - i);
-#ifdef INVARIANTS
-			bzero(&bucket->ub_bucket[i],
-			    sizeof(void *) * (bucket->ub_cnt - i));
-#endif
-			bucket->ub_cnt = i;
-		}
-	}
-
-	/*
-	 * Check if bucket_alloc() returned a strange bucket or
-	 * we reduced ub_cnt due to failed uz_init.
-	 */
-	if (bucket->ub_cnt < max) {
-		ZONE_LOCK(zone);
-		zone->uz_items -= max - bucket->ub_cnt;
-		if (zone->uz_sleepers > 0 &&
-		    zone->uz_items < zone->uz_maxitems)
-			wakeup_one(zone);
-		ZONE_UNLOCK(zone);
-		if (bucket->ub_cnt == 0) {
-			bucket_free(zone, bucket, udata);
-			atomic_add_long(&zone->uz_fails, 1);
-			goto zalloc_item;
-		}
-	}
-
+	bucket = zone_alloc_bucket(zone, udata, domain, flags, max);
 	CTR3(KTR_UMA, "uma_zalloc: zone %s(%p) bucket zone returned %p",
 	    zone->uz_name, zone, bucket);
+	ZONE_LOCK(zone);
 	if (bucket != NULL) {
-		ZONE_LOCK(zone);
+		if (bucket->ub_cnt < max)
+			zone->uz_items -= max - bucket->ub_cnt;
 		critical_enter();
 		cpu = curcpu;
 		cache = &zone->uz_cpu[cpu];
@@ -2609,7 +2558,9 @@ zalloc_start:
 			zone_put_bucket(zone, zdom, bucket, false);
 		ZONE_UNLOCK(zone);
 		goto zalloc_start;
-	}
+	} else
+		zone->uz_items -= max;
+	ZONE_UNLOCK(zone);
 
 	/*
 	 * We may not be able to get a bucket so return an actual item.
@@ -2868,6 +2819,55 @@ zone_import(uma_zone_t zone, void **bucket, int max, int domain, int flags)
 		KEG_UNLOCK(keg);
 
 	return i;
+}
+
+static uma_bucket_t
+zone_alloc_bucket(uma_zone_t zone, void *udata, int domain, int flags, int max)
+{
+	uma_bucket_t bucket;
+
+	CTR1(KTR_UMA, "zone_alloc:_bucket domain %d)", domain);
+
+	/* Don't wait for buckets, preserve caller's NOVM setting. */
+	bucket = bucket_alloc(zone, udata, M_NOWAIT | (flags & M_NOVM));
+	if (bucket == NULL)
+		return (NULL);
+
+	bucket->ub_cnt = zone->uz_import(zone->uz_arg, bucket->ub_bucket,
+	    max, domain, flags);
+
+	/*
+	 * Initialize the memory if necessary.
+	 */
+	if (bucket->ub_cnt != 0 && zone->uz_init != NULL) {
+		int i;
+
+		for (i = 0; i < bucket->ub_cnt; i++)
+			if (zone->uz_init(bucket->ub_bucket[i], zone->uz_size,
+			    flags) != 0)
+				break;
+		/*
+		 * If we couldn't initialize the whole bucket, put the
+		 * rest back onto the freelist.
+		 */
+		if (i != bucket->ub_cnt) {
+			zone->uz_release(zone->uz_arg, &bucket->ub_bucket[i],
+			    bucket->ub_cnt - i);
+#ifdef INVARIANTS
+			bzero(&bucket->ub_bucket[i],
+			    sizeof(void *) * (bucket->ub_cnt - i));
+#endif
+			bucket->ub_cnt = i;
+		}
+	}
+
+	if (bucket->ub_cnt == 0) {
+		bucket_free(zone, bucket, udata);
+		atomic_add_long(&zone->uz_fails, 1);
+		return (NULL);
+	}
+
+	return (bucket);
 }
 
 /*
