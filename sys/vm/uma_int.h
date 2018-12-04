@@ -223,7 +223,9 @@ typedef struct uma_domain * uma_domain_t;
  *
  */
 struct uma_keg {
-	struct mtx	uk_lock;	/* Lock for the keg. MUST be first! */
+	struct mtx	uk_lock;	/* Lock for the keg must be first.
+					 * See shared uz_keg/uz_lockptr
+					 * member of struct uma_zone. */
 	struct uma_hash	uk_hash;
 	LIST_HEAD(,uma_zone)	uk_zones;	/* Keg's zones */
 
