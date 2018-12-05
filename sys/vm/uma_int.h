@@ -236,7 +236,6 @@ struct uma_keg {
 	uint32_t	uk_reserve;	/* Number of reserved items. */
 	uint32_t	uk_size;	/* Requested size of each item */
 	uint32_t	uk_rsize;	/* Real size of each item */
-	/* 32 bit pad */
 
 	uma_init	uk_init;	/* Keg's init routine */
 	uma_fini	uk_fini;	/* Keg's fini routine */
