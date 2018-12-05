@@ -427,7 +427,6 @@ void uma_large_free(uma_slab_t slab);
 #define	ZONE_LOCK(z)	mtx_lock((z)->uz_lockptr)
 #define	ZONE_TRYLOCK(z)	mtx_trylock((z)->uz_lockptr)
 #define	ZONE_UNLOCK(z)	mtx_unlock((z)->uz_lockptr)
-#define	ZONE_LOCK_ASSERT(z)	mtx_assert((z)->uz_lockptr, MA_OWNED)
 #define	ZONE_LOCK_FINI(z)	mtx_destroy(&(z)->uz_lock)
 #define	ZONE_LOCK_ASSERT(z)	mtx_assert((z)->uz_lockptr, MA_OWNED)
 
