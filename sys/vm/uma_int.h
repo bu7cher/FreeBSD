@@ -326,7 +326,7 @@ struct uma_zone {
 	uma_ctor	uz_ctor;	/* Constructor for each allocation */
 	uma_dtor	uz_dtor;	/* Destructor */
 	uint64_t	uz_items;	/* Total items count */
-	uint64_t	uz_maxitems;	/* Maximum number of items to alloc */
+	uint64_t	uz_max_items;	/* Maximum number of items to alloc */
 	uint32_t	uz_sleepers;	/* Number of sleepers on memory */
 	uint16_t	uz_count;	/* Amount of items in full bucket */
 	uint16_t	uz_count_max;	/* Maximum amount of items there */
@@ -338,8 +338,8 @@ struct uma_zone {
 	uma_init	uz_init;	/* Initializer for each item */
 	uma_fini	uz_fini;	/* Finalizer for each item. */
 	uma_slaballoc	uz_slab;	/* Allocate a slab from the backend. */
-	uint64_t	uz_bktcount;    /* Items in bucket cache */
-	uint64_t	uz_bktmax;	/* Maximum bucket cache size */
+	uint64_t	uz_bkt_count;    /* Items in bucket cache */
+	uint64_t	uz_bkt_max;	/* Maximum bucket cache size */
 
 	/* Offset 128 Rare. */
 	/*

@@ -471,7 +471,7 @@ zone_try_fetch_bucket(uma_zone_t zone, uma_zone_domain_t zdom, const bool ws)
 		zdom->uzd_nitems -= bucket->ub_cnt;
 		if (ws && zdom->uzd_imin > zdom->uzd_nitems)
 			zdom->uzd_imin = zdom->uzd_nitems;
-		zone->uz_bktcount -= bucket->ub_cnt;
+		zone->uz_bkt_count -= bucket->ub_cnt;
 	}
 	return (bucket);
 }
@@ -482,14 +482,14 @@ zone_put_bucket(uma_zone_t zone, uma_zone_domain_t zdom, uma_bucket_t bucket,
 {
 
 	ZONE_LOCK_ASSERT(zone);
-	KASSERT(zone->uz_bktcount < zone->uz_bktmax, ("%s: zone %p overflow",
+	KASSERT(zone->uz_bkt_count < zone->uz_bkt_max, ("%s: zone %p overflow",
 	    __func__, zone));
 
 	LIST_INSERT_HEAD(&zdom->uzd_buckets, bucket, ub_link);
 	zdom->uzd_nitems += bucket->ub_cnt;
 	if (ws && zdom->uzd_imax < zdom->uzd_nitems)
 		zdom->uzd_imax = zdom->uzd_nitems;
-	zone->uz_bktcount += bucket->ub_cnt;
+	zone->uz_bkt_count += bucket->ub_cnt;
 }
 
 static void
@@ -732,7 +732,7 @@ bucket_drain(uma_zone_t zone, uma_bucket_t bucket)
 	zone->uz_release(zone->uz_arg, bucket->ub_bucket, bucket->ub_cnt);
 	ZONE_LOCK(zone);
 	zone->uz_items -= bucket->ub_cnt;
-	if (zone->uz_sleepers && zone->uz_items < zone->uz_maxitems)
+	if (zone->uz_sleepers && zone->uz_items < zone->uz_max_items)
 		wakeup_one(zone);
 	ZONE_UNLOCK(zone);
 	bucket->ub_cnt = 0;
@@ -1760,7 +1760,7 @@ zone_ctor(void *mem, int size, void *udata, int flags)
 	zone->uz_warning = NULL;
 	/* The domain structures follow the cpu structures. */
 	zone->uz_domain = (struct uma_zone_domain *)&zone->uz_cpu[mp_ncpus];
-	zone->uz_bktmax = ULONG_MAX;
+	zone->uz_bkt_max = ULONG_MAX;
 	timevalclear(&zone->uz_ratecheck);
 
 	/*
@@ -2489,8 +2489,8 @@ zalloc_start:
 	if (lockfail && zone->uz_count < zone->uz_count_max)
 		zone->uz_count++;
 
-	if (zone->uz_maxitems) {
-		if (zone->uz_items >= zone->uz_maxitems) {
+	if (zone->uz_max_items) {
+		if (zone->uz_items >= zone->uz_max_items) {
 			zone_log_warning(zone);
 			zone_maxaction(zone);
 			if (flags & M_NOWAIT) {
@@ -2501,17 +2501,17 @@ zalloc_start:
 			zone->uz_sleepers++;
 			msleep(zone, zone->uz_lockptr, PVM, "zonelimit", 0);
 			zone->uz_sleepers--;
-			if (zone->uz_items >= zone->uz_maxitems) {
+			if (zone->uz_items >= zone->uz_max_items) {
 				ZONE_UNLOCK(zone);
 				goto zalloc_restart;
 			}
 		}
 		maxbucket = MIN(zone->uz_count,
-		    zone->uz_maxitems - zone->uz_items);
+		    zone->uz_max_items - zone->uz_items);
 	} else
 		maxbucket = zone->uz_count;
 	zone->uz_items += maxbucket;
-	if (zone->uz_sleepers && zone->uz_items < zone->uz_maxitems)
+	if (zone->uz_sleepers && zone->uz_items < zone->uz_max_items)
 		wakeup_one(zone);
 	ZONE_UNLOCK(zone);
 
@@ -2543,7 +2543,7 @@ zalloc_start:
 		    domain == PCPU_GET(domain))) {
 			cache->uc_allocbucket = bucket;
 			zdom->uzd_imax += bucket->ub_cnt;
-		} else if (zone->uz_bktcount >= zone->uz_bktmax) {
+		} else if (zone->uz_bkt_count >= zone->uz_bkt_max) {
 			critical_exit();
 			ZONE_UNLOCK(zone);
 			bucket_drain(zone, bucket);
@@ -2681,8 +2681,8 @@ restart:
 		if (flags & M_NOVM)
 			break;
 
-		KASSERT(zone->uz_maxitems == 0 ||
-		    zone->uz_items <= zone->uz_maxitems,
+		KASSERT(zone->uz_max_items == 0 ||
+		    zone->uz_items <= zone->uz_max_items,
 		    ("%s: zone %p overflow", __func__, zone));
 
 		slab = keg_alloc_slab(keg, zone, domain, aflags);
@@ -2888,7 +2888,7 @@ zone_alloc_item(uma_zone_t zone, void *udata, int domain, int flags)
 #endif
 
 	ZONE_LOCK(zone);
-	if (zone->uz_maxitems && zone->uz_items >= zone->uz_maxitems) {
+	if (zone->uz_max_items && zone->uz_items >= zone->uz_max_items) {
 		zone_log_warning(zone);
 		zone_maxaction(zone);
 		if (flags & M_NOWAIT) {
@@ -2898,13 +2898,13 @@ zone_alloc_item(uma_zone_t zone, void *udata, int domain, int flags)
 		zone->uz_sleeps++;
 		zone->uz_sleepers++;
 		msleep(zone, zone->uz_lockptr, PVM, "zonelimit", 0);
-		KASSERT(zone->uz_items < zone->uz_maxitems,
+		KASSERT(zone->uz_items < zone->uz_max_items,
 		    ("%s: woke up with full zone %p", __func__, zone));
 		zone->uz_sleepers--;
 	}
 	zone->uz_items++;
 	zone->uz_allocs++;
-	if (zone->uz_sleepers && zone->uz_items < zone->uz_maxitems)
+	if (zone->uz_sleepers && zone->uz_items < zone->uz_max_items)
 		wakeup_one(zone);
 	ZONE_UNLOCK(zone);
 
@@ -3103,7 +3103,7 @@ zfree_start:
 		/* ub_cnt is pointing to the last free item */
 		KASSERT(bucket->ub_cnt == bucket->ub_entries,
 		    ("uma_zfree: Attempting to insert not full bucket onto the full list.\n"));
-		if (zone->uz_bktcount >= zone->uz_bktmax) {
+		if (zone->uz_bkt_count >= zone->uz_bkt_max) {
 			ZONE_UNLOCK(zone);
 			bucket_drain(zone, bucket);
 			bucket_free(zone, bucket, udata);
@@ -3226,7 +3226,7 @@ zone_release(uma_zone_t zone, void **bucket, int cnt)
 			MPASS(slab->us_keg == keg);
 		}
 		slab_free_item(zone, slab, item);
-		if (zone->uz_sleepers && zone->uz_items < zone->uz_maxitems)
+		if (zone->uz_sleepers && zone->uz_items < zone->uz_max_items)
 			wakeup_one(zone);
 	}
 	KEG_UNLOCK(keg);
@@ -3271,7 +3271,7 @@ zone_free_item(uma_zone_t zone, void *item, void *udata, enum zfreeskip skip)
 	ZONE_LOCK(zone);
 	zone->uz_frees++;
 	zone->uz_items--;
-	if (zone->uz_sleepers && zone->uz_items < zone->uz_maxitems)
+	if (zone->uz_sleepers && zone->uz_items < zone->uz_max_items)
 		wakeup_one(zone);
 	ZONE_UNLOCK(zone);
 }
@@ -3299,7 +3299,7 @@ uma_zone_set_max(uma_zone_t zone, int nitems)
 	zone->uz_count_max = zone->uz_count = ubz->ubz_entries;
 	if (zone->uz_count_min > zone->uz_count_max)
 		zone->uz_count_min = zone->uz_count_max;
-	zone->uz_maxitems = nitems;
+	zone->uz_max_items = nitems;
 	ZONE_UNLOCK(zone);
 
 	return (nitems);
@@ -3311,7 +3311,7 @@ uma_zone_set_maxcache(uma_zone_t zone, int nitems)
 {
 
 	ZONE_LOCK(zone);
-	zone->uz_bktmax = nitems;
+	zone->uz_bkt_max = nitems;
 	ZONE_UNLOCK(zone);
 
 	return (nitems);
@@ -3324,7 +3324,7 @@ uma_zone_get_max(uma_zone_t zone)
 	int nitems;
 
 	ZONE_LOCK(zone);
-	nitems = zone->uz_maxitems;
+	nitems = zone->uz_max_items;
 	ZONE_UNLOCK(zone);
 
 	return (nitems);
@@ -3756,7 +3756,7 @@ uma_print_zone(uma_zone_t zone)
 	int i;
 
 	printf("zone: %s(%p) size %d maxitems %lu flags %#x\n",
-	    zone->uz_name, zone, zone->uz_size, zone->uz_maxitems,
+	    zone->uz_name, zone, zone->uz_size, zone->uz_max_items,
 	    zone->uz_flags);
 	if (zone->uz_lockptr != &zone->uz_lock)
 		uma_print_keg(zone->uz_keg);
@@ -3875,9 +3875,9 @@ sysctl_vm_zone_stats(SYSCTL_HANDLER_ARGS)
 			uth.uth_rsize = kz->uk_rsize;
 			uth.uth_pages += (z->uz_items / kz->uk_ipers) *
 			    kz->uk_ppera;
-			uth.uth_maxpages += (z->uz_maxitems / kz->uk_ipers) *
+			uth.uth_maxpages += (z->uz_max_items / kz->uk_ipers) *
 			    kz->uk_ppera;
-			uth.uth_limit = z->uz_maxitems;
+			uth.uth_limit = z->uz_max_items;
 			uth.uth_keg_free += z->uz_keg->uk_free;
 
 			/*
