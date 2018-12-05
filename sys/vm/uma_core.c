@@ -2489,7 +2489,7 @@ zalloc_start:
 	if (lockfail && zone->uz_count < zone->uz_count_max)
 		zone->uz_count++;
 
-	if (zone->uz_max_items) {
+	if (zone->uz_max_items > 0) {
 		if (zone->uz_items >= zone->uz_max_items) {
 			zone_log_warning(zone);
 			zone_maxaction(zone);
@@ -2511,7 +2511,7 @@ zalloc_start:
 	} else
 		maxbucket = zone->uz_count;
 	zone->uz_items += maxbucket;
-	if (zone->uz_sleepers && zone->uz_items < zone->uz_max_items)
+	if (zone->uz_sleepers > 0 && zone->uz_items < zone->uz_max_items)
 		wakeup_one(zone);
 	ZONE_UNLOCK(zone);
 
@@ -3072,7 +3072,7 @@ zfree_start:
 	 * and they will wake up on wrong CPU, then they will go back
 	 * to sleep.
 	 */
-	if (zone->uz_sleepers)
+	if (zone->uz_sleepers > 0)
 		wakeup_one(zone);
 	critical_enter();
 	cpu = curcpu;
