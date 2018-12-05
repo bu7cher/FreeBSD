@@ -255,6 +255,7 @@ static void hash_free(struct uma_hash *hash);
 static void uma_timeout(void *);
 static void uma_startup3(void);
 static void *zone_alloc_item(uma_zone_t, void *, int, int);
+static void *zone_alloc_item_locked(uma_zone_t, void *, int, int);
 static void zone_free_item(uma_zone_t, void *, void *, enum zfreeskip);
 static void bucket_enable(void);
 static void bucket_init(void);
@@ -2437,8 +2438,10 @@ zalloc_start:
 		domain = UMA_ANYDOMAIN;
 
 	/* Short-circuit for zones without buckets and low memory. */
-	if (zone->uz_count == 0 || bucketdisable)
+	if (zone->uz_count == 0 || bucketdisable) {
+		ZONE_LOCK(zone);
 		goto zalloc_item;
+	}
 
 	/*
 	 * Attempt to retrieve the item from the per-CPU cache has failed, so
@@ -2490,29 +2493,13 @@ zalloc_start:
 		zone->uz_count++;
 
 	if (zone->uz_max_items > 0) {
-		if (zone->uz_items >= zone->uz_max_items) {
-			zone_log_warning(zone);
-			zone_maxaction(zone);
-			if (flags & M_NOWAIT) {
-				ZONE_UNLOCK(zone);
-				return (NULL);
-			}
-			zone->uz_sleeps++;
-			zone->uz_sleepers++;
-			msleep(zone, zone->uz_lockptr, PVM, "zonelimit", 0);
-			zone->uz_sleepers--;
-			if (zone->uz_items >= zone->uz_max_items) {
-				ZONE_UNLOCK(zone);
-				goto zalloc_restart;
-			}
-		}
+		if (zone->uz_items >= zone->uz_max_items)
+			goto zalloc_item;
 		maxbucket = MIN(zone->uz_count,
 		    zone->uz_max_items - zone->uz_items);
 	} else
 		maxbucket = zone->uz_count;
 	zone->uz_items += maxbucket;
-	if (zone->uz_sleepers > 0 && zone->uz_items < zone->uz_max_items)
-		wakeup_one(zone);
 	ZONE_UNLOCK(zone);
 
 	/*
@@ -2528,6 +2515,9 @@ zalloc_start:
 		if (bucket->ub_cnt < maxbucket) {
 			MPASS(zone->uz_items >= maxbucket - bucket->ub_cnt);
 			zone->uz_items -= maxbucket - bucket->ub_cnt;
+			if (zone->uz_sleepers > 0 &&
+			    zone->uz_items < zone->uz_max_items)
+				wakeup_one(zone);
 		}
 		critical_enter();
 		cpu = curcpu;
@@ -2553,15 +2543,35 @@ zalloc_start:
 			zone_put_bucket(zone, zdom, bucket, false);
 		ZONE_UNLOCK(zone);
 		goto zalloc_start;
-	} else
+	} else {
 		zone->uz_items -= maxbucket;
-	ZONE_UNLOCK(zone);
+		goto maybe_wakeup;
+	}
 
 	/*
 	 * We may not be able to get a bucket so return an actual item.
 	 */
 zalloc_item:
-	item = zone_alloc_item(zone, udata, domain, flags);
+	if (zone->uz_max_items > 0 && zone->uz_items >= zone->uz_max_items) {
+		zone_log_warning(zone);
+		zone_maxaction(zone);
+		if (flags & M_NOWAIT) {
+			ZONE_UNLOCK(zone);
+			return (NULL);
+		}
+		zone->uz_sleeps++;
+		zone->uz_sleepers++;
+		mtx_sleep(zone, zone->uz_lockptr, PVM, "zonelimit", 0);
+		KASSERT(zone->uz_items < zone->uz_max_items,
+		    ("%s: woke up with full zone %p", __func__, zone));
+		zone->uz_sleepers--;
+maybe_wakeup:
+		if (zone->uz_sleepers > 0 &&
+		    zone->uz_items + 1 < zone->uz_max_items)
+			wakeup_one(zone);
+	}
+
+	item = zone_alloc_item_locked(zone, udata, domain, flags);
 
 	return (item);
 }
@@ -2882,30 +2892,25 @@ zone_alloc_bucket(uma_zone_t zone, void *udata, int domain, int flags, int max)
 static void *
 zone_alloc_item(uma_zone_t zone, void *udata, int domain, int flags)
 {
+
+	ZONE_LOCK(zone);
+	return (zone_alloc_item_locked(zone, udata, domain, flags));
+}
+
+static void *
+zone_alloc_item_locked(uma_zone_t zone, void *udata, int domain, int flags)
+{
 	void *item;
 #ifdef INVARIANTS
 	bool skipdbg;
 #endif
 
-	ZONE_LOCK(zone);
-	if (zone->uz_max_items && zone->uz_items >= zone->uz_max_items) {
-		zone_log_warning(zone);
-		zone_maxaction(zone);
-		if (flags & M_NOWAIT) {
-			ZONE_UNLOCK(zone);
-			return (NULL);
-		}
-		zone->uz_sleeps++;
-		zone->uz_sleepers++;
-		msleep(zone, zone->uz_lockptr, PVM, "zonelimit", 0);
-		KASSERT(zone->uz_items < zone->uz_max_items,
-		    ("%s: woke up with full zone %p", __func__, zone));
-		zone->uz_sleepers--;
-	}
+	ZONE_LOCK_ASSERT(zone);
+	KASSERT(zone->uz_max_items == 0 || zone->uz_items < zone->uz_max_items,
+	    ("%s: zone %p is full", __func__, zone));
+
 	zone->uz_items++;
 	zone->uz_allocs++;
-	if (zone->uz_sleepers && zone->uz_items < zone->uz_max_items)
-		wakeup_one(zone);
 	ZONE_UNLOCK(zone);
 
 	if (domain != UMA_ANYDOMAIN) {
@@ -3012,6 +3017,13 @@ uma_zfree_arg(uma_zone_t zone, void *item, void *udata)
 	if (zone->uz_dtor != NULL)
 #endif
 		zone->uz_dtor(item, zone->uz_size, udata);
+
+	/*
+	 * The race here is acceptable.  If we miss it we'll just have to wait
+	 * a little longer for the limits to be reset.
+	 */
+	if (zone->uz_sleepers > 0)
+		goto zfree_item;
 
 	/*
 	 * If possible, free to the per-CPU cache.  There are two
@@ -3226,8 +3238,6 @@ zone_release(uma_zone_t zone, void **bucket, int cnt)
 			MPASS(slab->us_keg == keg);
 		}
 		slab_free_item(zone, slab, item);
-		if (zone->uz_sleepers && zone->uz_items < zone->uz_max_items)
-			wakeup_one(zone);
 	}
 	KEG_UNLOCK(keg);
 }
@@ -3271,7 +3281,7 @@ zone_free_item(uma_zone_t zone, void *item, void *udata, enum zfreeskip skip)
 	ZONE_LOCK(zone);
 	zone->uz_frees++;
 	zone->uz_items--;
-	if (zone->uz_sleepers && zone->uz_items < zone->uz_max_items)
+	if (zone->uz_sleepers > 0 && zone->uz_items < zone->uz_max_items)
 		wakeup_one(zone);
 	ZONE_UNLOCK(zone);
 }
