@@ -1060,7 +1060,7 @@ keg_alloc_slab(uma_keg_t keg, uma_zone_t zone, int domain, int wait)
 
 	KASSERT(domain >= 0 && domain < vm_ndomains,
 	    ("keg_alloc_slab: domain %d out of range", domain));
-	mtx_assert(&keg->uk_lock, MA_OWNED);
+	KEG_LOCK_ASSERT(keg);
 	MPASS(zone->uz_lockptr == &keg->uk_lock);
 
 	allocf = keg->uk_allocf;
@@ -2614,7 +2614,7 @@ keg_first_slab(uma_keg_t keg, int domain, bool rr)
 
 	KASSERT(domain >= 0 && domain < vm_ndomains,
 	    ("keg_first_slab: domain %d out of range", domain));
-	mtx_assert(&keg->uk_lock, MA_OWNED);
+	KEG_LOCK_ASSERT(keg);
 
 	slab = NULL;
 	start = domain;
@@ -2640,7 +2640,7 @@ keg_fetch_free_slab(uma_keg_t keg, int domain, bool rr, int flags)
 {
 	uint32_t reserve;
 
-	mtx_assert(&keg->uk_lock, MA_OWNED);
+	KEG_LOCK_ASSERT(keg);
 
 	reserve = (flags & M_USE_RESERVE) != 0 ? 0 : keg->uk_reserve;
 	if (keg->uk_free <= reserve)
@@ -2658,7 +2658,7 @@ keg_fetch_slab(uma_keg_t keg, uma_zone_t zone, int rdomain, const int flags)
 	bool rr;
 
 restart:
-	mtx_assert(&keg->uk_lock, MA_OWNED);
+	KEG_LOCK_ASSERT(keg);
 
 	/*
 	 * Use the keg's policy if upper layers haven't already specified a
@@ -2760,7 +2760,7 @@ slab_alloc_item(uma_keg_t keg, uma_slab_t slab)
 	uint8_t freei;
 
 	MPASS(keg == slab->us_keg);
-	mtx_assert(&keg->uk_lock, MA_OWNED);
+	KEG_LOCK_ASSERT(keg);
 
 	freei = BIT_FFS(SLAB_SETSIZE, &slab->us_free) - 1;
 	BIT_CLR(SLAB_SETSIZE, freei, &slab->us_free);
@@ -3189,7 +3189,7 @@ slab_free_item(uma_zone_t zone, uma_slab_t slab, void *item)
 
 	keg = zone->uz_keg;
 	MPASS(zone->uz_lockptr == &keg->uk_lock);
-	mtx_assert(&keg->uk_lock, MA_OWNED);
+	KEG_LOCK_ASSERT(keg);
 	MPASS(keg == slab->us_keg);
 
 	dom = &keg->uk_domain[slab->us_domain];
