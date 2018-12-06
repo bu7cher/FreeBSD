@@ -79,7 +79,7 @@ struct pfilioc_link {
 #define PFIL_OUT	0x00020000
 #define PFIL_FWD	0x00040000
 #define PFIL_DIR(f)	((f) & (PFIL_IN|PFIL_OUT))
-#define	PFIL_VOID	0x00080000
+#define	PFIL_MEMPTR	0x00080000
 #define	PFIL_HEADPTR	0x00100000
 #define	PFIL_HOOKPTR	0x00200000
 #define	PFIL_APPEND	0x00400000

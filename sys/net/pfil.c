@@ -124,7 +124,7 @@ pfil_fake_mbuf(pfil_func_t func, void *mem, struct ifnet *ifp, int flags,
 	m_extadd(&m, mem, PFIL_LENGTH(flags), NULL, NULL, NULL, 0, EXT_RXRING);
 	m.m_len = m.m_pkthdr.len = PFIL_LENGTH(flags);
 	mp = &m;
-	flags &= ~(PFIL_VOID | PFIL_LENMASK);
+	flags &= ~(PFIL_MEMPTR | PFIL_LENMASK);
 
 	rv = func(&mp, ifp, flags, ruleset, inp);
 	if (rv == PFIL_PASS && mp != &m) {
@@ -161,7 +161,7 @@ pfil_run_hooks(struct pfil_head *head, pfil_packet_t p, struct ifnet *ifp,
 	rv = PFIL_PASS;
 	PFIL_EPOCH_ENTER(et);
 	CK_STAILQ_FOREACH(link, pch, link_chain) {
-		if ((flags & PFIL_VOID) && !(link->link_flags & PFIL_VOID))
+		if ((flags & PFIL_MEMPTR) && !(link->link_flags & PFIL_MEMPTR))
 			rvi = pfil_fake_mbuf(link->link_func, p.mem, ifp,
 			    flags, link->link_ruleset, inp);
 		else
@@ -171,7 +171,7 @@ pfil_run_hooks(struct pfil_head *head, pfil_packet_t p, struct ifnet *ifp,
 			rv = rvi;
 			break;
 		} else if (rv == PFIL_REALLOCED) {
-			flags &= ~(PFIL_VOID | PFIL_LENMASK);
+			flags &= ~(PFIL_MEMPTR | PFIL_LENMASK);
 			rv = rvi;
 		}
 	}
