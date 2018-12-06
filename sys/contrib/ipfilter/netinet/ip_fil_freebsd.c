@@ -94,33 +94,34 @@ static void ipf_ifevent(arg, ifp)
 
 
 
-static int
+static pfil_return_t
 ipf_check_wrapper(struct mbuf **mp, struct ifnet *ifp, int flags,
     void *ruleset __unused, struct inpcb *inp)
 {
 	struct ip *ip = mtod(*mp, struct ip *);
-	int rv;
+	pfil_return_t rv;
 
 	CURVNET_SET(ifp->if_vnet);
 	rv = ipf_check(&V_ipfmain, ip, ip->ip_hl << 2, ifp, (flags & PFIL_OUT),
 	    mp);
 	CURVNET_RESTORE();
 
-	return rv;
+	return (rv == 0 ? PFIL_PASS : PFIL_DROPPED);
 }
 
 #ifdef USE_INET6
-static int
+static pfil_return_t
 ipf_check_wrapper6(struct mbuf **mp, struct ifnet *ifp, int flags,
     void *ruleset __unused, struct inpcb *inp)
 {
-	int error;
+	pfil_return_t rv;
 
 	CURVNET_SET(ifp->if_vnet);
-	error = ipf_check(&V_ipfmain, mtod(*mp, struct ip *),
+	rv = ipf_check(&V_ipfmain, mtod(*mp, struct ip *),
 	    sizeof(struct ip6_hdr), ifp, (flags & PFIL_OUT), mp);
 	CURVNET_RESTORE();
-	return (error);
+
+	return (rv == 0 ? PFIL_PASS : PFIL_DROPPED);
 }
 #endif
 

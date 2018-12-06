@@ -117,14 +117,14 @@ SYSEND
  * dummynet, divert, netgraph or other modules.
  * The packet may be consumed.
  */
-static int
+static pfil_return_t
 ipfw_check_packet(struct mbuf **m0, struct ifnet *ifp, int dir,
     void *ruleset __unused, struct inpcb *inp)
 {
 	struct ip_fw_args args;
 	struct m_tag *tag;
+	pfil_return_t ret;
 	int ipfw;
-	int ret;
 
 	/* convert dir to IPFW values */
 	dir = (dir & PFIL_IN) ? DIR_IN : DIR_OUT;
@@ -154,14 +154,14 @@ again:
 	    __func__));
 
 	/* breaking out of the switch means drop */
-	ret = 0;	/* default return value for pass */
+	ret = PFIL_PASS;
 	switch (ipfw) {
 	case IP_FW_PASS:
 		/* next_hop may be set by ipfw_chk */
 		if (args.next_hop == NULL && args.next_hop6 == NULL)
 			break; /* pass */
 #if (!defined(INET6) && !defined(INET))
-		ret = EACCES;
+		ret = PFIL_DROPPED;
 #else
 	    {
 		struct m_tag *fwd_tag;
@@ -191,7 +191,7 @@ again:
 			fwd_tag = m_tag_get(PACKET_TAG_IPFORWARD, len,
 			    M_NOWAIT);
 			if (fwd_tag == NULL) {
-				ret = EACCES;
+				ret = PFIL_DROPPED;
 				break; /* i.e. drop */
 			}
 		}
@@ -207,7 +207,7 @@ again:
 			 * comparisons.
 			 */
 			if (sa6_embedscope(sa6, V_ip6_use_defzone) != 0) {
-				ret = EACCES;
+				ret = PFIL_DROPPED;
 				break;
 			}
 			if (in6_localip(&sa6->sin6_addr))
@@ -229,17 +229,17 @@ again:
 		break;
 
 	case IP_FW_DENY:
-		ret = EACCES;
+		ret = PFIL_DROPPED;
 		break; /* i.e. drop */
 
 	case IP_FW_DUMMYNET:
-		ret = EACCES;
+		ret = PFIL_DROPPED;
 		if (ip_dn_io_ptr == NULL)
 			break; /* i.e. drop */
 		if (mtod(*m0, struct ip *)->ip_v == 4)
-			ret = ip_dn_io_ptr(m0, dir, &args);
+			(void )ip_dn_io_ptr(m0, dir, &args);
 		else if (mtod(*m0, struct ip *)->ip_v == 6)
-			ret = ip_dn_io_ptr(m0, dir | PROTO_IPV6, &args);
+			(void )ip_dn_io_ptr(m0, dir | PROTO_IPV6, &args);
 		else
 			break; /* drop it */
 		/*
@@ -255,11 +255,10 @@ again:
 
 	case IP_FW_TEE:
 	case IP_FW_DIVERT:
-		if (ip_divert_ptr == NULL) {
-			ret = EACCES;
+		ret = PFIL_DROPPED;
+		if (ip_divert_ptr == NULL)
 			break; /* i.e. drop */
-		}
-		ret = ipfw_divert(m0, dir, &args.rule,
+		(void )ipfw_divert(m0, dir, &args.rule,
 			(ipfw == IP_FW_TEE) ? 1 : 0);
 		/* continue processing for the original packet (tee). */
 		if (*m0)
@@ -268,11 +267,10 @@ again:
 
 	case IP_FW_NGTEE:
 	case IP_FW_NETGRAPH:
-		if (ng_ipfw_input_p == NULL) {
-			ret = EACCES;
+		ret = PFIL_DROPPED;
+		if (ng_ipfw_input_p == NULL)
 			break; /* i.e. drop */
-		}
-		ret = ng_ipfw_input_p(m0, dir, &args,
+		(void )ng_ipfw_input_p(m0, dir, &args,
 			(ipfw == IP_FW_NGTEE) ? 1 : 0);
 		if (ipfw == IP_FW_NGTEE) /* ignore errors for NGTEE */
 			goto again;	/* continue with packet */
@@ -291,28 +289,29 @@ again:
 		KASSERT(0, ("%s: unknown retval", __func__));
 	}
 
-	if (ret != 0) {
+	if (ret != PFIL_PASS) {
 		if (*m0)
 			FREE_PKT(*m0);
 		*m0 = NULL;
 	}
 
-	return ret;
+	return (ret);
 }
 
 /*
  * ipfw processing for ethernet packets (in and out).
  */
-static int
+static pfil_return_t
 ipfw_check_frame(struct mbuf **m0, struct ifnet *ifp, int dir,
     void *ruleset __unused, struct inpcb *inp)
 {
 	struct ether_header *eh;
 	struct ether_header save_eh;
 	struct mbuf *m;
-	int i, ret;
 	struct ip_fw_args args;
 	struct m_tag *mtag;
+	pfil_return_t ret;
+	int i;
 
 	bzero(&args, sizeof(args));
 
@@ -364,18 +363,18 @@ again:
 	}
 	*m0 = m;
 
-	ret = 0;
+	ret = PFIL_PASS;
 	/* Check result of ipfw_chk() */
 	switch (i) {
 	case IP_FW_PASS:
 		break;
 
 	case IP_FW_DENY:
-		ret = EACCES;
+		ret = PFIL_DROPPED;
 		break; /* i.e. drop */
 
 	case IP_FW_DUMMYNET:
-		ret = EACCES;
+		ret = PFIL_DROPPED;
 		int dir2;
 
 		if (ip_dn_io_ptr == NULL)
@@ -388,11 +387,10 @@ again:
 
 	case IP_FW_NGTEE:
 	case IP_FW_NETGRAPH:
-		if (ng_ipfw_input_p == NULL) {
-			ret = EACCES;
+		ret = PFIL_DROPPED;
+		if (ng_ipfw_input_p == NULL)
 			break; /* i.e. drop */
-		}
-		ret = ng_ipfw_input_p(m0, (dir & PFIL_IN) ? DIR_IN : DIR_OUT,
+		(void )ng_ipfw_input_p(m0, (dir & PFIL_IN) ? DIR_IN : DIR_OUT,
 			&args, (i == IP_FW_NGTEE) ? 1 : 0);
 		if (i == IP_FW_NGTEE) /* ignore errors for NGTEE */
 			goto again;	/* continue with packet */

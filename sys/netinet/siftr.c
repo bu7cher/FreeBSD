@@ -830,7 +830,7 @@ siftr_siftdata(struct pkt_node *pn, struct inpcb *inp, struct tcpcb *tp,
  * It's very important to use the M_NOWAIT flag with all function calls
  * that support it so that they won't sleep, otherwise you get a panic.
  */
-static int
+static pfil_return_t
 siftr_chkpkt(struct mbuf **m, struct ifnet *ifp, int flags,
     void *ruleset __unused, struct inpcb *inp)
 {
@@ -997,8 +997,7 @@ inp_unlock:
 		INP_RUNLOCK(inp);
 
 ret:
-	/* Returning 0 ensures pfil will not discard the pkt */
-	return (0);
+	return (PFIL_PASS);
 }
 
 

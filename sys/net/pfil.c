@@ -85,6 +85,7 @@ struct pfil_link {
 	CK_STAILQ_ENTRY(pfil_link) link_chain;
 	pfil_func_t		 link_func;
 	void			*link_ruleset;
+	int			 link_flags;
 	struct pfil_hook	*link_hook;
 	struct epoch_context	 link_epoch_ctx;
 };
@@ -112,18 +113,43 @@ VNET_DEFINE_STATIC(struct pfilhookhead, pfil_hook_list);
 static struct pfil_link *pfil_link_remove(pfil_chain_t *, pfil_hook_t );
 static void pfil_link_free(epoch_context_t);
 
+static __noinline int
+pfil_fake_mbuf(pfil_func_t func, void *mem, struct ifnet *ifp, int flags,
+    void *ruleset, struct inpcb *inp)
+{
+	struct mbuf m, *mp;
+	pfil_return_t rv;
+
+	(void)m_init(&m, M_NOWAIT, MT_DATA, M_NOFREE | M_PKTHDR);
+	m_extadd(&m, mem, PFIL_LENGTH(flags), NULL, NULL, NULL, 0, EXT_RXRING);
+	m.m_len = m.m_pkthdr.len = PFIL_LENGTH(flags);
+	mp = &m;
+	flags &= ~(PFIL_VOID | PFIL_LENMASK);
+
+	rv = func(&mp, ifp, flags, ruleset, inp);
+	if (rv == PFIL_PASS && mp != &m) {
+		/*
+		 * Firewalls that need pfil_fake_mbuf() most likely don't
+		 * know to return PFIL_REALLOCED.
+		 */
+		rv = PFIL_REALLOCED;
+		*(struct mbuf **)mem = mp;
+	}
+
+	return (rv);
+}
+
 /*
  * pfil_run_hooks() runs the specified packet filter hook chain.
  */
 int
-pfil_run_hooks(struct pfil_head *head, struct mbuf **mp, struct ifnet *ifp,
+pfil_run_hooks(struct pfil_head *head, pfil_packet_t p, struct ifnet *ifp,
     int flags, struct inpcb *inp)
 {
 	struct epoch_tracker et;
 	pfil_chain_t *pch;
-	struct pfil_link *pfl;
-	struct mbuf *m = *mp;
-	int rv = 0;
+	struct pfil_link *link;
+	pfil_return_t rv, rvi;
 
 	if (PFIL_DIR(flags) == PFIL_IN)
 		pch = &head->head_in;
@@ -132,15 +158,25 @@ pfil_run_hooks(struct pfil_head *head, struct mbuf **mp, struct ifnet *ifp,
 	else
 		panic("%s: bogus flags %d", __func__, flags);
 
+	rv = PFIL_PASS;
 	PFIL_EPOCH_ENTER(et);
-	CK_STAILQ_FOREACH(pfl, pch, link_chain) {
-		rv = (*pfl->link_func)(&m, ifp, flags, pfl->link_ruleset, inp);
-		if (rv != 0 || m == NULL)
+	CK_STAILQ_FOREACH(link, pch, link_chain) {
+		if ((flags & PFIL_VOID) && !(link->link_flags & PFIL_VOID))
+			rvi = pfil_fake_mbuf(link->link_func, p.mem, ifp,
+			    flags, link->link_ruleset, inp);
+		else
+			rvi = (*link->link_func)(p, ifp, flags,
+			    link->link_ruleset, inp);
+		if (rvi == PFIL_DROPPED) {
+			rv = rvi;
 			break;
+		} else if (rv == PFIL_REALLOCED) {
+			flags &= ~(PFIL_VOID | PFIL_LENMASK);
+			rv = rvi;
+		}
 	}
 	PFIL_EPOCH_EXIT(et);
-	*mp = m;
-	return (rv);
+	return (rvi);
 }
 
 /*
@@ -326,6 +362,7 @@ pfil_link(struct pfil_link_args *pa)
 	if (pa->pa_flags & PFIL_IN) {
 		in->link_hook = hook;
 		in->link_func = hook->hook_func;
+		in->link_flags = hook->hook_flags;
 		in->link_ruleset = hook->hook_ruleset;
 		CK_STAILQ_INSERT_HEAD(&head->head_in, in, link_chain);
 		hook->hook_links++;
@@ -334,6 +371,7 @@ pfil_link(struct pfil_link_args *pa)
 	if (pa->pa_flags & PFIL_OUT) {
 		out->link_hook = hook;
 		out->link_func = hook->hook_func;
+		out->link_flags = hook->hook_flags;
 		out->link_ruleset = hook->hook_ruleset;
 		CK_STAILQ_INSERT_TAIL(&head->head_out, out, link_chain);
 		hook->hook_links++;

@@ -169,16 +169,16 @@ static void		 pf_tbladdr_copyout(struct pf_addr_wrap *);
  * Wrapper functions for pfil(9) hooks
  */
 #ifdef INET
-static int pf_check_in(struct mbuf **m, struct ifnet *ifp, int flags,
-    void *ruleset __unused, struct inpcb *inp);
-static int pf_check_out(struct mbuf **m, struct ifnet *ifp, int flags,
-    void *ruleset __unused, struct inpcb *inp);
+static pfil_return_t pf_check_in(struct mbuf **m, struct ifnet *ifp,
+    int flags, void *ruleset __unused, struct inpcb *inp);
+static pfil_return_t pf_check_out(struct mbuf **m, struct ifnet *ifp,
+    int flags, void *ruleset __unused, struct inpcb *inp);
 #endif
 #ifdef INET6
-static int pf_check6_in(struct mbuf **m, struct ifnet *ifp, int flags,
-    void *ruleset __unused, struct inpcb *inp);
-static int pf_check6_out(struct mbuf **m, struct ifnet *ifp, int flags,
-    void *ruleset __unused, struct inpcb *inp);
+static pfil_return_t pf_check6_in(struct mbuf **m, struct ifnet *ifp,
+    int flags, void *ruleset __unused, struct inpcb *inp);
+static pfil_return_t pf_check6_out(struct mbuf **m, struct ifnet *ifp,
+    int flags, void *ruleset __unused, struct inpcb *inp);
 #endif
 
 static int		hook_pf(void);
@@ -4005,7 +4005,7 @@ shutdown_pf(void)
 }
 
 #ifdef INET
-static int
+static pfil_return_t
 pf_check_in(struct mbuf **m, struct ifnet *ifp, int flags,
     void *ruleset __unused, struct inpcb *inp)
 {
@@ -4017,12 +4017,10 @@ pf_check_in(struct mbuf **m, struct ifnet *ifp, int flags,
 		*m = NULL;
 	}
 
-	if (chk != PF_PASS)
-		return (EACCES);
-	return (0);
+	return (chk == PF_PASS ? PFIL_PASS : PFIL_DROPPED);
 }
 
-static int
+static pfil_return_t
 pf_check_out(struct mbuf **m, struct ifnet *ifp, int flags,
     void *ruleset __unused,  struct inpcb *inp)
 {
@@ -4034,14 +4032,12 @@ pf_check_out(struct mbuf **m, struct ifnet *ifp, int flags,
 		*m = NULL;
 	}
 
-	if (chk != PF_PASS)
-		return (EACCES);
-	return (0);
+	return (chk == PF_PASS ? PFIL_PASS : PFIL_DROPPED);
 }
 #endif
 
 #ifdef INET6
-static int
+static pfil_return_t
 pf_check6_in(struct mbuf **m, struct ifnet *ifp, int flags,
     void *ruleset __unused,  struct inpcb *inp)
 {
@@ -4059,12 +4055,11 @@ pf_check6_in(struct mbuf **m, struct ifnet *ifp, int flags,
 		m_freem(*m);
 		*m = NULL;
 	}
-	if (chk != PF_PASS)
-		return (EACCES);
-	return (0);
+
+	return (chk == PF_PASS ? PFIL_PASS : PFIL_DROPPED);
 }
 
-static int
+static pfil_return_t
 pf_check6_out(struct mbuf **m, struct ifnet *ifp, int flags,
     void *ruleset __unused,  struct inpcb *inp)
 {
@@ -4077,9 +4072,8 @@ pf_check6_out(struct mbuf **m, struct ifnet *ifp, int flags,
 		m_freem(*m);
 		*m = NULL;
 	}
-	if (chk != PF_PASS)
-		return (EACCES);
-	return (0);
+
+	return (chk == PF_PASS ? PFIL_PASS : PFIL_DROPPED);
 }
 #endif /* INET6 */
 

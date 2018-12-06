@@ -75,22 +75,36 @@ struct pfilioc_link {
 #define	PFILIOC_LISTHOOKS	_IOWR('P', 2, struct pfilioc_list)
 #define	PFILIOC_LINK		_IOW('P', 3, struct pfilioc_link)
 
-#define PFIL_IN		0x00000001
-#define PFIL_OUT	0x00000002
-#define PFIL_FWD	0x00000004
+#define PFIL_IN		0x00010000
+#define PFIL_OUT	0x00020000
+#define PFIL_FWD	0x00040000
 #define PFIL_DIR(f)	((f) & (PFIL_IN|PFIL_OUT))
-#define	PFIL_HEADPTR	0x00000010
-#define	PFIL_HOOKPTR	0x00000020
-#define	PFIL_APPEND	0x00000040
-#define	PFIL_UNLINK	0x00000080
+#define	PFIL_VOID	0x00080000
+#define	PFIL_HEADPTR	0x00100000
+#define	PFIL_HOOKPTR	0x00200000
+#define	PFIL_APPEND	0x00400000
+#define	PFIL_UNLINK	0x00800000
+#define	PFIL_LENMASK	0x0000ffff
+#define	PFIL_LENGTH(f)	((f) & PFIL_LENMASK)
 
 #ifdef _KERNEL
 struct mbuf;
 struct ifnet;
 struct inpcb;
 
-typedef	int	(*pfil_func_t)(struct mbuf **, struct ifnet *, int, void *,
-		    struct inpcb *);
+typedef union {
+	struct mbuf	**m;
+	void		*mem;
+} pfil_packet_t __attribute__((__transparent_union__));
+
+typedef enum {
+	PFIL_PASS = 0,
+	PFIL_DROPPED,
+	PFIL_REALLOCED,
+} pfil_return_t;
+
+typedef	pfil_return_t	(*pfil_func_t)(pfil_packet_t, struct ifnet *, int,
+			    void *, struct inpcb *);
 /*
  * A pfil head is created by a packet intercept point.
  *
@@ -157,7 +171,7 @@ pfil_head_t	pfil_head_register(struct pfil_head_args *);
 void		pfil_head_unregister(pfil_head_t);
 
 /* Public functions to run the packet inspection by inspection points. */
-int	pfil_run_hooks(struct pfil_head *, struct mbuf **, struct ifnet *, int,
+int	pfil_run_hooks(struct pfil_head *, pfil_packet_t, struct ifnet *, int,
     struct inpcb *inp);
 /*
  * Minimally exposed structure to avoid function call in case of absence
