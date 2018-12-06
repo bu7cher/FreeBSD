@@ -3541,6 +3541,7 @@ mlx5e_create_ifp(struct mlx5_core_dev *mdev)
 	struct sysctl_oid_list *child;
 	int ncv = mdev->priv.eq_table.num_comp_vectors;
 	char unit[16];
+	struct pfil_head_args pa;
 	int err;
 	int i;
 	u32 eth_proto_cap;
@@ -3759,6 +3760,12 @@ mlx5e_create_ifp(struct mlx5_core_dev *mdev)
 	    "RX timestamps calibration state");
 	callout_init(&priv->tstmp_clbr, CALLOUT_DIRECT);
 	mlx5e_reset_calibration_callout(priv);
+
+	pa.pa_version = PFIL_VERSION;
+	pa.pa_flags = PFIL_IN;
+	pa.pa_type = PFIL_TYPE_ETHERNET;
+	pa.pa_headname = ifp->if_xname;
+	priv->pfil = pfil_head_register(&pa);
 
 	return (priv);
 

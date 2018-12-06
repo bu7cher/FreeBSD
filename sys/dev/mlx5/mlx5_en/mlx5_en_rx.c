@@ -462,6 +462,21 @@ mlx5e_poll_rx_cq(struct mlx5e_rq *rq, int budget)
 			rq->stats.wqe_err++;
 			goto wq_ll_pop;
 		}
+		if (PFIL_HOOKED_IN(rq->channel->priv->pfil)) {
+			int rv;
+
+			rv = pfil_run_hooks(rq->channel->priv->pfil,
+			    rq->mbuf[wqe_counter].data, rq->ifp,
+			    byte_cnt | PFIL_VOID | PFIL_IN, NULL);
+
+			KASSERT(rv != PFIL_REALLOCED,
+			    ("Filter did something we don't support yet"));
+
+			if (rv != PFIL_PASS) {
+				rq->stats.packets++;
+				goto wq_ll_pop;
+			}
+		}
 		if ((MHLEN - MLX5E_NET_IP_ALIGN) >= byte_cnt &&
 		    (mb = m_gethdr(M_NOWAIT, MT_DATA)) != NULL) {
 #if (MLX5E_MAX_RX_SEGS != 1)

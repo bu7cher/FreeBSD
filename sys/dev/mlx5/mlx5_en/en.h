@@ -48,6 +48,7 @@
 #include <netinet/tcp_lro.h>
 #include <netinet/udp.h>
 #include <net/ethernet.h>
+#include <net/pfil.h>
 #include <sys/buf_ring.h>
 #include <sys/kthread.h>
 
@@ -815,6 +816,8 @@ struct mlx5e_priv {
 	int	clbr_curr;
 	struct mlx5e_clbr_point clbr_points[2];
 	u_int	clbr_gen;
+
+	pfil_head_t	pfil;
 };
 
 #define	MLX5E_NET_IP_ALIGN 2
