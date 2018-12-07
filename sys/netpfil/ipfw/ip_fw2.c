@@ -2904,6 +2904,7 @@ do {								\
 					if (is_ipv6) {
 						struct sockaddr_in6 *sa6;
 
+						args->flags |= IPFW_ARG_NEXTHOP6;
 						sa6 = args->next_hop6 =
 						    &args->hopstore6;
 						sa6->sin6_family = AF_INET6;
@@ -2924,6 +2925,7 @@ do {								\
 					} else
 #endif
 					{
+						args->flags |= IPFW_ARG_NEXTHOP;
 						args->hopstore.sin_port =
 						    sa->sin_port;
 						sa = args->next_hop =
@@ -2935,6 +2937,7 @@ do {								\
 						    nh4));
 					}
 				    } else {
+					args->flags |= IPFW_ARG_NEXTHOP;
 					args->next_hop = sa;
 				    }
 				}
@@ -2952,6 +2955,7 @@ do {								\
 					struct sockaddr_in6 *sin6;
 
 					sin6 = &(((ipfw_insn_sa6 *)cmd)->sa);
+					args->flags |= IPFW_ARG_NEXTHOP6;
 					args->next_hop6 = sin6;
 				}
 				retval = IP_FW_PASS;

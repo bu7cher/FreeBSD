@@ -129,15 +129,18 @@ ipfw_check_packet(pfil_packet_t p, struct ifnet *ifp, int flags,
 
 	dir = (flags & PFIL_IN) ? DIR_IN : DIR_OUT;
 	ismem = flags & PFIL_MEMPTR;
-	bzero(&args, sizeof(args));
 
 again:
-	/*
-	 * extract and remove the tag if present. If we are left
-	 * with onepass, optimize the outgoing path.
-	 */
-	if (!ismem) {
+	if (ismem) {
+		args.flags = IPFW_ARG_MEMPTR;
+		args.mem = p.mem;
+		args.m_len = PFIL_LENGTH(flags);
+		args.rule.slot = 0;
+	} else {
 		struct m_tag *tag;
+
+		args.m = *p.m;
+		args.flags = 0;
 
 		tag = m_tag_locate(*p.m, MTAG_IPFW_RULE, 0, NULL);
 		if (tag != NULL) {
@@ -147,14 +150,9 @@ again:
 				return (PFIL_PASS);
 		}
 	}
-
-	if (ismem) {
-		args.flags = IPFW_ARG_MEMPTR;
-		args.mem = p.mem;
-		args.m_len = PFIL_LENGTH(flags);
-	} else
-		args.m = *p.m;
 	args.oif = dir == DIR_OUT ? ifp : NULL;
+	args.eh = NULL;
+	bzero(&args.f_id, sizeof(args.f_id));
 	args.inp = inp;
 
 	ipfw = ipfw_chk(&args);
@@ -172,7 +170,7 @@ again:
 	switch (ipfw) {
 	case IP_FW_PASS:
 		/* next_hop may be set by ipfw_chk */
-		if (args.next_hop == NULL && args.next_hop6 == NULL)
+		if ((args.flags & (IPFW_ARG_NEXTHOP | IPFW_ARG_NEXTHOP6)) == 0)
 			break; /* pass */
 #if (!defined(INET6) && !defined(INET))
 		ret = PFIL_DROPPED;
@@ -185,11 +183,11 @@ again:
 		    ("%s: both next_hop=%p and next_hop6=%p not NULL", __func__,
 		     args.next_hop, args.next_hop6));
 #ifdef INET6
-		if (args.next_hop6 != NULL)
+		if (args.flags & IPFW_ARG_NEXTHOP)
 			len = sizeof(struct sockaddr_in6);
 #endif
 #ifdef INET
-		if (args.next_hop != NULL)
+		if (args.flags & IPFW_ARG_NEXTHOP6)
 			len = sizeof(struct sockaddr_in);
 #endif
 
@@ -210,7 +208,7 @@ again:
 			}
 		}
 #ifdef INET6
-		if (args.next_hop6 != NULL) {
+		if (args.flags & IPFW_ARG_NEXTHOP6) {
 			struct sockaddr_in6 *sa6;
 
 			sa6 = (struct sockaddr_in6 *)(fwd_tag + 1);
@@ -230,7 +228,7 @@ again:
 		}
 #endif
 #ifdef INET
-		if (args.next_hop != NULL) {
+		if (args.flags & IPFW_ARG_NEXTHOP) {
 			bcopy(args.next_hop, (fwd_tag+1), len);
 			if (in_localip(args.next_hop->sin_addr))
 				(*m0)->m_flags |= M_FASTFWD_OURS;

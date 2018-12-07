@@ -91,11 +91,10 @@ struct ip_fw_args {
 		};
 	};
 	int	flags;
-#define	IPFW_ARG_MEMPTR	0x00000001
+#define	IPFW_ARG_MEMPTR		0x00000001
+#define	IPFW_ARG_NEXTHOP	0x00000002
+#define	IPFW_ARG_NEXTHOP6	0x00000004
 	struct ifnet	*oif;		/* output interface		*/
-	struct sockaddr_in *next_hop;	/* forward address		*/
-	struct sockaddr_in6 *next_hop6; /* ipv6 forward address		*/
-
 	/*
 	 * On return, it points to the matching rule.
 	 * On entry, rule.slot > 0 means the info is valid and
@@ -104,12 +103,14 @@ struct ip_fw_args {
 	 * Otherwise, we locate the first rule >= rulenum:rule_id
 	 */
 	struct ipfw_rule_ref rule;	/* match/restart info		*/
-
 	struct ether_header *eh;	/* for bridged packets		*/
-
 	struct ipfw_flow_id f_id;	/* grabbed from IP header	*/
-	//uint32_t	cookie;		/* a cookie depending on rule action */
 	struct inpcb	*inp;
+
+	union {
+		struct sockaddr_in *next_hop;
+		struct sockaddr_in6 *next_hop6;
+	};
 
 	struct _ip6dn_args	dummypar; /* dummynet->ip6_output */
 	union {		/* store here if cannot use a pointer */
