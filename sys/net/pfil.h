@@ -173,6 +173,10 @@ void		pfil_head_unregister(pfil_head_t);
 /* Public functions to run the packet inspection by inspection points. */
 int	pfil_run_hooks(struct pfil_head *, pfil_packet_t, struct ifnet *, int,
     struct inpcb *inp);
+
+/* Epoch pfil requires to run hooks. */
+#define	PFIL_EPOCH		net_epoch_preempt
+
 /*
  * Minimally exposed structure to avoid function call in case of absence
  * of any filters by protocols and macros to do the check.

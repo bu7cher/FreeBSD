@@ -430,7 +430,12 @@ mlx5e_decompress_cqes(struct mlx5e_cq *cq)
 static int
 mlx5e_poll_rx_cq(struct mlx5e_rq *rq, int budget)
 {
+	struct epoch_tracker et;
 	int i;
+	bool hooked;
+
+	if ((hooked = PFIL_HOOKED_IN(rq->channel->priv->pfil)))
+		epoch_enter_preempt(PFIL_EPOCH, &et);
 
 	for (i = 0; i < budget; i++) {
 		struct mlx5e_rx_wqe *wqe;
@@ -462,7 +467,7 @@ mlx5e_poll_rx_cq(struct mlx5e_rq *rq, int budget)
 			rq->stats.wqe_err++;
 			goto wq_ll_pop;
 		}
-		if (PFIL_HOOKED_IN(rq->channel->priv->pfil)) {
+		if (hooked) {
 			int rv;
 
 			rv = pfil_run_hooks(rq->channel->priv->pfil,
@@ -515,7 +520,8 @@ wq_ll_pop:
 		mlx5_wq_ll_pop(&rq->wq, wqe_counter_be,
 		    &wqe->next.next_wqe_index);
 	}
-
+	if (hooked)
+		epoch_exit_preempt(PFIL_EPOCH, &et);
 	mlx5_cqwq_update_db_record(&rq->cq.wq);
 
 	/* ensure cq space is freed before enabling more cqes */

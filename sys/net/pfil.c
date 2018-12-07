@@ -66,10 +66,6 @@ MTX_SYSINIT(pfil_mtxinit, &pfil_lock, "pfil(9) lock", MTX_DEF);
 #define	PFIL_UNLOCK()	mtx_unlock(&pfil_lock)
 #define	PFIL_LOCK_ASSERT()	mtx_assert(&pfil_lock, MA_OWNED)
 
-#define	PFIL_EPOCH		net_epoch_preempt
-#define	PFIL_EPOCH_ENTER(et)	epoch_enter_preempt(net_epoch_preempt, &(et))
-#define	PFIL_EPOCH_EXIT(et)	epoch_exit_preempt(net_epoch_preempt, &(et))
-
 struct pfil_hook {
 	pfil_func_t	 hook_func;
 	void		*hook_ruleset;
@@ -146,10 +142,12 @@ int
 pfil_run_hooks(struct pfil_head *head, pfil_packet_t p, struct ifnet *ifp,
     int flags, struct inpcb *inp)
 {
-	struct epoch_tracker et;
 	pfil_chain_t *pch;
 	struct pfil_link *link;
 	pfil_return_t rv, rvi;
+
+	KASSERT(in_epoch(PFIL_EPOCH),
+	    ("%s intered not in pfil epoch", __func__));
 
 	if (PFIL_DIR(flags) == PFIL_IN)
 		pch = &head->head_in;
@@ -159,7 +157,6 @@ pfil_run_hooks(struct pfil_head *head, pfil_packet_t p, struct ifnet *ifp,
 		panic("%s: bogus flags %d", __func__, flags);
 
 	rv = PFIL_PASS;
-	PFIL_EPOCH_ENTER(et);
 	CK_STAILQ_FOREACH(link, pch, link_chain) {
 		if ((flags & PFIL_MEMPTR) && !(link->link_flags & PFIL_MEMPTR))
 			rvi = pfil_fake_mbuf(link->link_func, p.mem, ifp,
@@ -175,7 +172,6 @@ pfil_run_hooks(struct pfil_head *head, pfil_packet_t p, struct ifnet *ifp,
 			rv = rvi;
 		}
 	}
-	PFIL_EPOCH_EXIT(et);
 	return (rvi);
 }
 
