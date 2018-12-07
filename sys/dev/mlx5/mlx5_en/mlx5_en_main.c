@@ -3763,7 +3763,7 @@ mlx5e_create_ifp(struct mlx5_core_dev *mdev)
 
 	pa.pa_version = PFIL_VERSION;
 	pa.pa_flags = PFIL_IN;
-	pa.pa_type = PFIL_TYPE_ETHERNET;
+	pa.pa_type = PFIL_TYPE_IP4;
 	pa.pa_headname = ifp->if_xname;
 	priv->pfil = pfil_head_register(&pa);
 

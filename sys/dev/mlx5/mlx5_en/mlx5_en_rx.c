@@ -466,8 +466,10 @@ mlx5e_poll_rx_cq(struct mlx5e_rq *rq, int budget)
 			int rv;
 
 			rv = pfil_run_hooks(rq->channel->priv->pfil,
-			    rq->mbuf[wqe_counter].data, rq->ifp,
-			    byte_cnt | PFIL_VOID | PFIL_IN, NULL);
+			    rq->mbuf[wqe_counter].data + ETHER_HDR_LEN,
+			    rq->ifp,
+			    (byte_cnt - ETHER_HDR_LEN) | PFIL_MEMPTR | PFIL_IN,
+			    NULL);
 
 			KASSERT(rv != PFIL_REALLOCED,
 			    ("Filter did something we don't support yet"));
