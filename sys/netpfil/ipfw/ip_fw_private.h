@@ -83,7 +83,15 @@ struct _ip6dn_args {
  * efficient to pass variables around and extend the interface.
  */
 struct ip_fw_args {
-	struct mbuf	*m;		/* the mbuf chain		*/
+	union {
+		struct mbuf	*m;	/* the mbuf chain		*/
+		struct {
+			void	*mem;	/* or memory			*/
+			u_int	m_len;	/* and length			 */
+		};
+	};
+	int	flags;
+#define	IPFW_ARG_MEMPTR	0x00000001
 	struct ifnet	*oif;		/* output interface		*/
 	struct sockaddr_in *next_hop;	/* forward address		*/
 	struct sockaddr_in6 *next_hop6; /* ipv6 forward address		*/

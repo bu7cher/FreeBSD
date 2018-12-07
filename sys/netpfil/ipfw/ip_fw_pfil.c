@@ -118,16 +118,17 @@ SYSEND
  * The packet may be consumed.
  */
 static pfil_return_t
-ipfw_check_packet(struct mbuf **m0, struct ifnet *ifp, int dir,
+ipfw_check_packet(pfil_packet_t p, struct ifnet *ifp, int flags,
     void *ruleset __unused, struct inpcb *inp)
 {
+	struct mbuf **m0;	/* XXXGL shut up compile */
 	struct ip_fw_args args;
-	struct m_tag *tag;
 	pfil_return_t ret;
-	int ipfw;
+	int dir, ipfw;
+	bool ismem;
 
-	/* convert dir to IPFW values */
-	dir = (dir & PFIL_IN) ? DIR_IN : DIR_OUT;
+	dir = (flags & PFIL_IN) ? DIR_IN : DIR_OUT;
+	ismem = flags & PFIL_MEMPTR;
 	bzero(&args, sizeof(args));
 
 again:
@@ -135,26 +136,39 @@ again:
 	 * extract and remove the tag if present. If we are left
 	 * with onepass, optimize the outgoing path.
 	 */
-	tag = m_tag_locate(*m0, MTAG_IPFW_RULE, 0, NULL);
-	if (tag != NULL) {
-		args.rule = *((struct ipfw_rule_ref *)(tag+1));
-		m_tag_delete(*m0, tag);
-		if (args.rule.info & IPFW_ONEPASS)
-			return (0);
+	if (!ismem) {
+		struct m_tag *tag;
+
+		tag = m_tag_locate(*p.m, MTAG_IPFW_RULE, 0, NULL);
+		if (tag != NULL) {
+			args.rule = *((struct ipfw_rule_ref *)(tag+1));
+			m_tag_delete(*p.m, tag);
+			if (args.rule.info & IPFW_ONEPASS)
+				return (PFIL_PASS);
+		}
 	}
 
-	args.m = *m0;
+	if (ismem) {
+		args.flags = IPFW_ARG_MEMPTR;
+		args.mem = p.mem;
+		args.m_len = PFIL_LENGTH(flags);
+	} else
+		args.m = *p.m;
 	args.oif = dir == DIR_OUT ? ifp : NULL;
 	args.inp = inp;
 
 	ipfw = ipfw_chk(&args);
-	*m0 = args.m;
+	m0 = &args.m;	/* XXXGL */
 
-	KASSERT(*m0 != NULL || ipfw == IP_FW_DENY, ("%s: m0 is NULL",
+	KASSERT(args.m != NULL || ipfw == IP_FW_DENY, ("%s: args.m is NULL",
 	    __func__));
 
-	/* breaking out of the switch means drop */
-	ret = PFIL_PASS;
+	if (ismem && args.mem != p.mem) {
+		ismem = false;
+		ret = PFIL_REALLOCED;
+	} else
+		ret = PFIL_PASS;
+
 	switch (ipfw) {
 	case IP_FW_PASS:
 		/* next_hop may be set by ipfw_chk */
@@ -289,7 +303,7 @@ again:
 		KASSERT(0, ("%s: unknown retval", __func__));
 	}
 
-	if (ret != PFIL_PASS) {
+	if (!ismem && ret != PFIL_PASS) {
 		if (*m0)
 			FREE_PKT(*m0);
 		*m0 = NULL;
@@ -519,7 +533,7 @@ ipfw_hook(int onoff, int pf)
 	pfil_hook_t *h;
 
 	pha.pa_version = PFIL_VERSION;
-	pha.pa_flags = PFIL_IN | PFIL_OUT;
+	pha.pa_flags = PFIL_IN | PFIL_OUT | PFIL_MEMPTR;
 	pha.pa_modname = "ipfw";
 	pha.pa_ruleset = NULL;
 

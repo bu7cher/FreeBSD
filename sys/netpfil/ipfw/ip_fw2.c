@@ -1314,8 +1314,8 @@ ipfw_chk(struct ip_fw_args *args)
 	 *	(Until we start using L3offset, the packet is
 	 *	supposed to start with the ip header).
 	 */
-	struct mbuf *m = args->m;
-	struct ip *ip = mtod(m, struct ip *);
+	struct mbuf *m;
+	struct ip *ip;
 
 	/*
 	 * For rules which contain uid/gid or jail constraints, cache
@@ -1409,14 +1409,22 @@ ipfw_chk(struct ip_fw_args *args)
 
 	int done = 0;		/* flag to exit the outer loop */
 	IPFW_RLOCK_TRACKER;
+	bool ismem = (args->flags & IPFW_ARG_MEMPTR);
 
-	if (m->m_flags & M_SKIP_FIREWALL || (! V_ipfw_vnet_ready))
-		return (IP_FW_PASS);	/* accept */
+	if (ismem) {
+		ip = (struct ip *)args->mem;
+		pktlen = args->m_len;
+	} else {
+		m = args->m;
+		if (m->m_flags & M_SKIP_FIREWALL || (! V_ipfw_vnet_ready))
+			return (IP_FW_PASS);	/* accept */
+		ip = mtod(m, struct ip *);
+		pktlen = m->m_pkthdr.len;
+		args->f_id.fib = M_GETFIB(m); /* note mbuf not altered) */
+	}
 
 	dst_ip.s_addr = 0;		/* make sure it is initialized */
 	src_ip.s_addr = 0;		/* make sure it is initialized */
-	pktlen = m->m_pkthdr.len;
-	args->f_id.fib = M_GETFIB(m); /* note mbuf not altered) */
 	proto = args->f_id.proto = 0;	/* mark f_id invalid */
 		/* XXX 0 is a valid proto: IP/IPv6 Hop-by-Hop Option */
 
@@ -1431,12 +1439,17 @@ ipfw_chk(struct ip_fw_args *args)
 #define PULLUP_LEN(_len, p, T)					\
 do {								\
 	int x = (_len) + T;					\
-	if ((m)->m_len < x) {					\
-		args->m = m = m_pullup(m, x);			\
-		if (m == NULL)					\
-			goto pullup_failed;			\
+	if (ismem) {						\
+		MPASS(pktlen >= x);				\
+		p = (char *)args->mem + (_len);			\
+	} else {						\
+		if ((m)->m_len < x) {				\
+			args->m = m = m_pullup(m, x);		\
+			if (m == NULL)				\
+				goto pullup_failed;		\
+		}						\
+		p = (mtod(m, char *) + (_len));			\
 	}							\
-	p = (mtod(m, char *) + (_len));				\
 } while (0)
 
 	/*
@@ -1626,7 +1639,8 @@ do {								\
 				break;
 			} /*switch */
 		}
-		ip = mtod(m, struct ip *);
+		if (!ismem)
+			ip = mtod(m, struct ip *);
 		ip6 = (struct ip6_hdr *)ip;
 		args->f_id.src_ip6 = ip6->ip6_src;
 		args->f_id.dst_ip6 = ip6->ip6_dst;
@@ -1693,7 +1707,8 @@ do {								\
 			}
 		}
 
-		ip = mtod(m, struct ip *);
+		if (!ismem)
+			ip = mtod(m, struct ip *);
 		args->f_id.src_ip = ntohl(src_ip.s_addr);
 		args->f_id.dst_ip = ntohl(dst_ip.s_addr);
 	}
