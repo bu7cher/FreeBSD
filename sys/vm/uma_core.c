@@ -2545,32 +2545,15 @@ zalloc_start:
 		goto zalloc_start;
 	} else {
 		zone->uz_items -= maxbucket;
-		goto maybe_wakeup;
+		if (zone->uz_sleepers > 0 &&
+		    zone->uz_items + 1 < zone->uz_max_items)
+			wakeup_one(zone);
 	}
 
 	/*
 	 * We may not be able to get a bucket so return an actual item.
 	 */
 zalloc_item:
-	if (zone->uz_max_items > 0 && zone->uz_items >= zone->uz_max_items) {
-		zone_log_warning(zone);
-		zone_maxaction(zone);
-		if (flags & M_NOWAIT) {
-			ZONE_UNLOCK(zone);
-			return (NULL);
-		}
-		zone->uz_sleeps++;
-		zone->uz_sleepers++;
-		mtx_sleep(zone, zone->uz_lockptr, PVM, "zonelimit", 0);
-		KASSERT(zone->uz_items < zone->uz_max_items,
-		    ("%s: woke up with full zone %p", __func__, zone));
-		zone->uz_sleepers--;
-maybe_wakeup:
-		if (zone->uz_sleepers > 0 &&
-		    zone->uz_items + 1 < zone->uz_max_items)
-			wakeup_one(zone);
-	}
-
 	item = zone_alloc_item_locked(zone, udata, domain, flags);
 
 	return (item);
@@ -2906,8 +2889,23 @@ zone_alloc_item_locked(uma_zone_t zone, void *udata, int domain, int flags)
 #endif
 
 	ZONE_LOCK_ASSERT(zone);
-	KASSERT(zone->uz_max_items == 0 || zone->uz_items < zone->uz_max_items,
-	    ("%s: zone %p is full", __func__, zone));
+
+	if (zone->uz_max_items > 0 && zone->uz_items >= zone->uz_max_items) {
+		zone_log_warning(zone);
+		zone_maxaction(zone);
+		if (flags & M_NOWAIT) {
+			ZONE_UNLOCK(zone);
+			return (NULL);
+		}
+		zone->uz_sleeps++;
+		zone->uz_sleepers++;
+		while (zone->uz_items >= zone->uz_max_items)
+			mtx_sleep(zone, zone->uz_lockptr, PVM, "zonelimit", 0);
+		zone->uz_sleepers--;
+		if (zone->uz_sleepers > 0 &&
+		    zone->uz_items + 1 < zone->uz_max_items)
+			wakeup_one(zone);
+	}
 
 	zone->uz_items++;
 	zone->uz_allocs++;
