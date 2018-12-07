@@ -860,6 +860,7 @@ static u_int
 netisr_process_workstream_proto(struct netisr_workstream *nwsp, u_int proto)
 {
 	struct netisr_work local_npw, *npwp;
+	struct epoch_tracker et;
 	u_int handled;
 	struct mbuf *m;
 
@@ -889,6 +890,7 @@ netisr_process_workstream_proto(struct netisr_workstream *nwsp, u_int proto)
 	npwp->nw_len = 0;
 	nwsp->nws_pendingbits &= ~(1 << proto);
 	NWS_UNLOCK(nwsp);
+	NET_EPOCH_ENTER_ET(et);
 	while ((m = local_npw.nw_head) != NULL) {
 		local_npw.nw_head = m->m_nextpkt;
 		m->m_nextpkt = NULL;
@@ -901,6 +903,7 @@ netisr_process_workstream_proto(struct netisr_workstream *nwsp, u_int proto)
 		netisr_proto[proto].np_handler(m);
 		CURVNET_RESTORE();
 	}
+	NET_EPOCH_EXIT_ET(et);
 	KASSERT(local_npw.nw_len == 0,
 	    ("%s(%u): len %u", __func__, proto, local_npw.nw_len));
 	if (netisr_proto[proto].np_drainedcpu)
@@ -1084,6 +1087,7 @@ netisr_dispatch_src(u_int proto, uintptr_t source, struct mbuf *m)
 	struct netisr_workstream *nwsp;
 	struct netisr_proto *npp;
 	struct netisr_work *npwp;
+	struct epoch_tracker et;
 	int dosignal, error;
 	u_int cpuid, dispatch_policy;
 
@@ -1119,7 +1123,9 @@ netisr_dispatch_src(u_int proto, uintptr_t source, struct mbuf *m)
 		npwp = &nwsp->nws_work[proto];
 		npwp->nw_dispatched++;
 		npwp->nw_handled++;
+		NET_EPOCH_ENTER_ET(et);
 		netisr_proto[proto].np_handler(m);
+		NET_EPOCH_EXIT_ET(et);
 		error = 0;
 		goto out_unlock;
 	}
@@ -1170,7 +1176,9 @@ netisr_dispatch_src(u_int proto, uintptr_t source, struct mbuf *m)
 	 */
 	nwsp->nws_flags |= NWS_DISPATCHING;
 	NWS_UNLOCK(nwsp);
+	NET_EPOCH_ENTER_ET(et);
 	netisr_proto[proto].np_handler(m);
+	NET_EPOCH_EXIT_ET(et);
 	NWS_LOCK(nwsp);
 	nwsp->nws_flags &= ~NWS_DISPATCHING;
 	npwp->nw_handled++;
