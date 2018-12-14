@@ -2880,6 +2880,9 @@ zone_alloc_item(uma_zone_t zone, void *udata, int domain, int flags)
 	return (zone_alloc_item_locked(zone, udata, domain, flags));
 }
 
+/*
+ * Returns with zone unlocked.
+ */
 static void *
 zone_alloc_item_locked(uma_zone_t zone, void *udata, int domain, int flags)
 {
