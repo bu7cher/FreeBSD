@@ -114,7 +114,6 @@ static int vdev_read(void *vdev __unused, void *priv, off_t off, void *buf,
 #ifdef LOADER_GELI_SUPPORT
 #include "geliboot.h"
 static char gelipw[GELI_PW_MAXLEN];
-static struct keybuf *gelibuf;
 #endif
 
 struct gptdsk {
@@ -480,17 +479,18 @@ load(void)
 #ifdef LOADER_GELI_SUPPORT
 	geliargs.size = sizeof(geliargs);
 	explicit_bzero(gelipw, sizeof(gelipw));
-	gelibuf = malloc(sizeof(struct keybuf) +
-	    (GELI_MAX_KEYS * sizeof(struct keybuf_ent)));
-	geli_export_key_buffer(gelibuf);
-	geliargs.notapw = '\0';
-	geliargs.keybuf_sentinel = KEYBUF_SENTINEL;
-	geliargs.keybuf = gelibuf;
+	export_geli_boot_data(&geliargs.gelidata);
 #endif
+	/*
+	 * Note that the geliargs struct is passed by value, not by pointer.
+	 * Code in btxldr.S copies the values from the entry stack to a fixed
+	 * location within loader(8) at startup due to the presence of the
+	 * KARGS_FLAGS_EXTARG flag.
+	 */
 	__exec((caddr_t)addr, RB_BOOTINFO | (opts & RBX_MASK),
 	    MAKEBOOTDEV(dev_maj[gdsk.dsk.type], gdsk.dsk.part + 1, gdsk.dsk.unit, 0xff),
 #ifdef LOADER_GELI_SUPPORT
-	    KARGS_FLAGS_EXTARG, 0, 0, VTOP(&bootinfo), geliargs
+	    KARGS_FLAGS_GELI | KARGS_FLAGS_EXTARG, 0, 0, VTOP(&bootinfo), geliargs
 #else
 	    0, 0, 0, VTOP(&bootinfo)
 #endif
