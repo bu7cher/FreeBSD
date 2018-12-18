@@ -448,7 +448,7 @@ skip_percpu:
 			mtp->mt_memalloced = mtp->mt_numallocs * mtp->mt_size;
 			mtp->mt_memfreed = mtp->mt_numfrees * mtp->mt_size;
 			mtp->mt_bytes = mtp->mt_memalloced - mtp->mt_memfreed;
-			mtp->mt_countlimit = uz.uz_maxitems;
+			mtp->mt_countlimit = uz.uz_max_items;
 			mtp->mt_byteslimit = mtp->mt_countlimit * mtp->mt_size;
 			mtp->mt_count = mtp->mt_numallocs - mtp->mt_numfrees;
 			for (i = 0; i < ndomains; i++) {
